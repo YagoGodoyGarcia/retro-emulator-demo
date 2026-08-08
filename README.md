@@ -35,7 +35,7 @@ Mapeamento em `config/keychains.json`. Cada entrada:
 {
   "flappybird-nes": {
     "core": "nes",
-    "gameUrl": "https://raw.githubusercontent.com/retrobrews/nes-games/master/flappybird.nes",
+    "gameUrl": "/roms/flappybird.nes",
     "gameId": "flappybird-nes",
     "title": "Flappy Bird (NES Homebrew)"
   }
@@ -54,11 +54,12 @@ provar que a troca de core funciona:
 ### Sobre as ROMs
 
 Nada de ROM comercial da Nintendo aqui. As 3 ROMs são homebrew de domínio
-livre, carregadas direto do repositório
+livre, originalmente do repositório
 [`retrobrews/nes-games`](https://github.com/retrobrews/nes-games) e
 [`retrobrews/snes-games`](https://github.com/retrobrews/snes-games) (o mesmo
-projeto retrobrews citado no briefing) via `raw.githubusercontent.com` — sem
-copiar o binário pra este repo.
+projeto retrobrews citado no briefing), e ficam versionadas em
+`public/roms/` — servidas same-origin pelo próprio app (evita depender de
+CORS/disponibilidade de um CDN de terceiros pra ROM carregar).
 
 Os `keyId` (`flappybird-nes`, etc.) são só rótulos mockados do "chaveiro
 lido" — troque por `mario-nes`, `sonic-genesis` ou o que fizer sentido pro
@@ -104,6 +105,20 @@ Testar em viewport mobile (Chrome DevTools > device toolbar):
 - Leitura de NFC (o `keyId` na URL é o mock disso)
 - Autenticação/usuário
 - Persistência de save state em banco (IndexedDB do navegador é suficiente pra essa validação)
+
+## Troubleshooting
+
+**Menu/controles do EmulatorJS aparecem, mas a tela do jogo fica cinza e nunca
+carrega:** normalmente é a ROM não terminando de baixar (rede, CORS, ROM
+corrompida). Abre o DevTools (F12) → aba Console e Network:
+- Erro tipo "Network Error" na tela ou no console → a requisição de
+  `gameUrl` falhou. Confirma em Network se `GET /roms/<arquivo>` voltou 200.
+- Nenhum erro visível, só trava → deixa a aba aberta mais uns segundos (o
+  core WASM é pesado, principalmente no primeiro load) e confere se
+  `EJS_onGameStart` disparou no console (o badge no canto some quando roda).
+- Se quiser trocar a ROM por outra, garanta que a URL/arquivo é acessível
+  pelo navegador do jeito que for testar (same-origin, como `/roms/...`,
+  evita qualquer dor de cabeça de CORS de terceiro).
 
 ## Nota sobre este ambiente de desenvolvimento
 

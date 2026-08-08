@@ -1,20 +1,20 @@
 {
-  "_comment": "keyId -> config do jogo. keyId simula 'qual chaveiro foi lido' pelo NFC (isso vem depois). Troque gameUrl por qualquer outra ROM livremente distribuível sem mexer em código.",
+  "_comment": "keyId -> config do jogo. keyId simula 'qual chaveiro foi lido' pelo NFC (isso vem depois). gameUrl aponta pra /roms (servido same-origin pelo próprio app) — troque pelo caminho/URL de outra ROM sem mexer em código.",
   "flappybird-nes": {
     "core": "nes",
-    "gameUrl": "https://raw.githubusercontent.com/retrobrews/nes-games/master/flappybird.nes",
+    "gameUrl": "/roms/flappybird.nes",
     "gameId": "flappybird-nes",
     "title": "Flappy Bird (NES Homebrew)"
   },
   "invaders-nes": {
     "core": "nes",
-    "gameUrl": "https://raw.githubusercontent.com/retrobrews/nes-games/master/invaders.nes",
+    "gameUrl": "/roms/invaders.nes",
     "gameId": "invaders-nes",
     "title": "Invaders (NES Homebrew)"
   },
   "rockfall-snes": {
     "core": "snes",
-    "gameUrl": "https://raw.githubusercontent.com/retrobrews/snes-games/master/rockfall.smc",
+    "gameUrl": "/roms/rockfall.smc",
     "gameId": "rockfall-snes",
     "title": "Rockfall (SNES Homebrew)"
   }
