@@ -1,113 +1,172 @@
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
-html, body {
+/* Vários elementos aqui usam display flex/grid, que ganha do [hidden] nativo
+   (author style vence a folha do navegador na mesma especificidade). Sem
+   isso, esconder por JS não some com o elemento na tela. */
+[hidden] {
+  display: none !important;
+}
+
+:root {
+  --bg: #08080d;
+  --surface: #14141c;
+  --border: #24242f;
+  --text: #f2f2f7;
+  --muted: #a3a3b8;
+  --dim: #6f6f85;
+  --brand: #8b5cf6;
+  --brand-deep: #6d28d9;
+  /* Sobrescrito em tempo real pelo JS com a cor extraída da capa ativa. */
+  --live-accent: #c4b5fd;
+}
+
+html,
+body {
   margin: 0;
   padding: 0;
-  background: #0b0b12;
-  color: #f2f2f7;
+  background: var(--bg);
+  color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* ---------- index (tela inicial) ---------- */
+/* =====================================================================
+   VITRINE — ocupa exatamente uma tela, nunca rola
+   ===================================================================== */
 
 .index-body {
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
   position: relative;
-  background:
-    radial-gradient(600px 300px at 50% -10%, rgba(139, 92, 246, 0.18), transparent),
-    #0b0b12;
-  overflow-x: hidden;
+  background: var(--bg);
+  overscroll-behavior: none;
 }
 
-/* Fundo com tema dinâmico: duas camadas empilhadas, a gente cruza a
-   opacidade entre elas (crossfade) toda vez que o jogo ativo do carrossel
-   muda — dá aquele efeito "premium" de tela inteira reagindo às cores da
-   capa, sem precisar animar gradiente diretamente (que não transiciona bem
-   entre navegadores). */
+/* Duas camadas empilhadas: o JS cruza a opacidade entre elas pra trocar o
+   fundo suavemente conforme a cor da capa ativa. Fazer crossfade assim é
+   confiável em todo navegador; animar um gradiente direto não é. */
 .theme-backdrop {
   position: fixed;
   inset: 0;
   z-index: 0;
   opacity: 0;
-  transition: opacity 0.8s ease;
+  transition: opacity 0.85s ease;
   pointer-events: none;
 }
 
-.index-wrap {
+.app-shell {
   position: relative;
   z-index: 1;
-  max-width: 720px;
+  height: 100%;
+  max-width: 620px;
   margin: 0 auto;
-  padding: 48px 20px 48px;
-}
-
-.index-wrap--carousel {
-  max-width: 560px;
-  padding-top: 28px;
-}
-
-.hero {
-  text-align: center;
-  padding-bottom: 32px;
-}
-
-.hero--compact {
-  padding-bottom: 18px;
-}
-
-.hero-badge {
-  font-size: 2.5rem;
-  line-height: 1;
-  margin-bottom: 14px;
-}
-
-.hero h1 {
-  font-size: 1.85rem;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  margin: 0 0 10px;
-  background: linear-gradient(135deg, #d8d4ff 10%, #7fe9dd 90%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
-.hero--compact h1 {
-  font-size: 1.4rem;
-  margin: 0;
-}
-
-.hero-tagline {
-  color: #a3a3b8;
-  font-size: 0.95rem;
-  line-height: 1.5;
-  max-width: 340px;
-  margin: 0 auto;
-}
-
-.library-controls {
+  padding: max(8px, env(safe-area-inset-top)) 16px max(10px, env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
-.search-box {
+/* ---------- topo enxuto ---------- */
+
+.topbar {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 10px;
-  background: #14141c;
-  border: 1px solid #24242f;
-  border-radius: 14px;
-  padding: 12px 14px;
-  color: #6f6f85;
+  padding-top: 4px;
 }
 
-.search-box svg {
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 1.02rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.brand-mark {
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.brand-text {
+  background: linear-gradient(120deg, #ffffff 10%, var(--live-accent) 95%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  transition: background 0.6s ease;
+}
+
+.install-btn {
   flex: 0 0 auto;
-  width: 18px;
-  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.76rem;
+  font-weight: 700;
+  font-family: inherit;
+  padding: 7px 13px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.install-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.install-btn.is-ready {
+  border-color: var(--live-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--live-accent) 14%, transparent);
+}
+
+/* ---------- busca + filtros ---------- */
+
+.library-controls {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.search-row {
+  display: flex;
+  gap: 8px;
+}
+
+.search-box {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  padding: 10px 13px;
+  color: var(--dim);
+  transition: border-color 0.2s ease;
+}
+
+.search-box:focus-within {
+  border-color: var(--live-accent);
+}
+
+.search-box > svg {
+  flex: 0 0 auto;
+  width: 17px;
+  height: 17px;
 }
 
 .search-box input {
@@ -116,21 +175,63 @@ html, body {
   border: none;
   background: none;
   outline: none;
-  color: #f2f2f7;
-  font-size: 0.95rem;
+  color: var(--text);
+  font-size: 0.92rem;
   font-family: inherit;
 }
 
 .search-box input::placeholder {
-  color: #6f6f85;
+  color: var(--dim);
+}
+
+/* Botão de sugestão — o "cérebro" do app. */
+.ai-pick {
+  flex: 0 0 auto;
+  width: 44px;
+  border: 1px solid color-mix(in srgb, var(--live-accent) 45%, var(--border));
+  background: linear-gradient(150deg, color-mix(in srgb, var(--live-accent) 22%, var(--surface)), var(--surface));
+  color: var(--live-accent);
+  border-radius: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.25s ease;
+}
+
+.ai-pick svg {
+  width: 19px;
+  height: 19px;
+}
+
+.ai-pick:active {
+  transform: scale(0.94);
+}
+
+.ai-pick.is-thinking {
+  animation: ai-pulse 0.75s ease-in-out infinite;
+}
+
+.ai-pick.is-thinking svg {
+  animation: ai-spin 1.1s linear infinite;
+}
+
+@keyframes ai-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--live-accent) 45%, transparent); }
+  50% { box-shadow: 0 0 0 9px transparent; }
+}
+
+@keyframes ai-spin {
+  to { transform: rotate(360deg); }
 }
 
 .chip-row {
   display: flex;
-  gap: 8px;
+  gap: 7px;
   overflow-x: auto;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
+  padding-bottom: 1px;
 }
 
 .chip-row::-webkit-scrollbar {
@@ -139,41 +240,38 @@ html, body {
 
 .chip {
   flex: 0 0 auto;
-  border: 1px solid #24242f;
-  background: #14141c;
-  color: #a3a3b8;
-  font-size: 0.8rem;
-  font-weight: 600;
-  padding: 7px 14px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-family: inherit;
+  padding: 6px 13px;
   border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
 }
 
 .chip--active {
-  background: #2c2c5c;
-  border-color: #5b5bd6;
-  color: #d8d4ff;
+  background: color-mix(in srgb, var(--live-accent) 20%, var(--surface));
+  border-color: var(--live-accent);
+  color: #fff;
 }
 
-.empty-state {
-  text-align: center;
-  color: #6f6f85;
-  font-size: 0.9rem;
-  padding: 32px 0;
-}
-
-/* ---------- carrossel 3D (tipo coverflow) ---------- */
+/* ---------- carrossel: come todo o espaço que sobra ---------- */
 
 .carousel-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 2px;
-  margin-top: 8px;
 }
 
 .carousel {
   flex: 1;
   min-width: 0;
-  height: 210px;
+  height: 100%;
   position: relative;
   perspective: 1100px;
   overflow: hidden;
@@ -205,13 +303,15 @@ html, body {
   overflow: hidden;
   padding: 0;
   opacity: 0;
-  transition: transform 0.4s cubic-bezier(0.22, 0.68, 0, 1.01), opacity 0.4s ease, box-shadow 0.4s ease;
+  cursor: pointer;
+  transition: transform 0.42s cubic-bezier(0.22, 0.68, 0, 1.01), opacity 0.42s ease,
+    box-shadow 0.42s ease;
   will-change: transform, opacity;
   box-shadow: 0 22px 40px -18px rgba(0, 0, 0, 0.65);
 }
 
 .carousel-item.is-active {
-  box-shadow: 0 0 0 3px var(--accent), 0 26px 46px -16px var(--accent);
+  box-shadow: 0 0 0 3px var(--accent), 0 26px 46px -14px var(--accent);
 }
 
 .carousel-cover-img {
@@ -220,23 +320,37 @@ html, body {
   object-fit: cover;
   display: block;
   pointer-events: none;
-  /* imagens de jogo antigo são pixel art pequena — sem isso o navegador
-     borra ao esticar pra 152px, aumenta bem o efeito "premium" da capa */
+  /* screenshot de jogo antigo é pixel art pequena — sem isso o navegador
+     borra tudo ao ampliar */
   image-rendering: pixelated;
 }
 
+/* Flutuando sobre as bordas do carrossel em vez de ocupar espaço na linha —
+   assim a capa central usa toda a largura disponível. */
 .carousel-nav {
-  flex: 0 0 auto;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  border: 1px solid #24242f;
-  background: #14141c;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
   color: #c7c7d6;
   display: flex;
   align-items: center;
   justify-content: center;
+  cursor: pointer;
   z-index: 10;
+  backdrop-filter: blur(6px);
+}
+
+#carousel-prev {
+  left: 0;
+}
+
+#carousel-next {
+  right: 0;
 }
 
 .carousel-nav svg {
@@ -245,17 +359,20 @@ html, body {
 }
 
 .carousel-nav:active {
-  background: #1c1c28;
+  background: var(--surface);
+  transform: translateY(-50%) scale(0.93);
 }
 
+/* ---------- painel do jogo em foco ---------- */
+
 .now-playing {
+  flex: 0 0 auto;
   text-align: center;
-  margin-top: 20px;
-  min-height: 118px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
+  padding-bottom: 2px;
 }
 
 .now-playing-tags {
@@ -264,25 +381,74 @@ html, body {
   gap: 8px;
 }
 
-.now-playing-title {
-  font-size: 1.25rem;
+.card-console-tag {
+  font-size: 0.63rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
   font-weight: 800;
-  letter-spacing: -0.01em;
+  color: var(--live-accent);
+  transition: color 0.5s ease;
+}
+
+.card-genre-tag {
+  font-size: 0.68rem;
+  color: var(--dim);
+  padding-left: 8px;
+  border-left: 1px solid #33333f;
+}
+
+.now-playing-title {
+  font-size: 1.28rem;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  line-height: 1.2;
+}
+
+.now-playing-title.is-in {
+  animation: rise-in 0.35s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(7px); }
+  to { opacity: 1; transform: none; }
+}
+
+.now-playing-reason {
+  font-size: 0.74rem;
+  color: var(--live-accent);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: color-mix(in srgb, var(--live-accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--live-accent) 30%, transparent);
+  padding: 4px 11px;
+  border-radius: 999px;
+}
+
+.now-playing-reason.is-in {
+  animation: rise-in 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+.carousel-counter {
+  font-size: 0.66rem;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
 }
 
 .play-btn {
-  margin-top: 10px;
+  margin-top: 6px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+  background: linear-gradient(135deg, var(--brand), var(--brand-deep));
   color: #fff;
-  font-weight: 700;
-  font-size: 0.95rem;
-  padding: 13px 28px;
+  font-weight: 800;
+  font-size: 0.96rem;
+  padding: 13px 32px;
   border-radius: 999px;
   text-decoration: none;
-  box-shadow: 0 16px 32px -14px rgba(139, 92, 246, 0.75);
+  box-shadow: 0 16px 32px -14px rgba(139, 92, 246, 0.8);
+  transition: transform 0.14s ease;
 }
 
 .play-btn svg {
@@ -294,92 +460,126 @@ html, body {
   transform: scale(0.97);
 }
 
-.card-console-tag {
-  font-size: 0.65rem;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  font-weight: 700;
-  color: var(--accent);
-}
-
-.card-genre-tag {
-  font-size: 0.68rem;
-  color: #6f6f85;
-  padding-left: 8px;
-  border-left: 1px solid #33333f;
-}
-
-.subtitle {
-  color: #a3a3b8;
+.empty-state {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--dim);
   font-size: 0.9rem;
-  line-height: 1.4;
-  margin-bottom: 24px;
+  margin: 0;
+  padding: 0 20px;
 }
 
-.known-list {
-  padding-left: 20px;
-  color: #a3a3b8;
+.empty-state[hidden] {
+  display: none;
 }
 
-.known-list a {
-  color: #b9b9ff;
-}
+/* ---------- folha de instruções do iOS (só ao tocar em Instalar) ---------- */
 
-.ios-hint {
-  margin-top: 28px;
+.sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
   display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  background: #14141c;
-  border: 1px solid #2c2c5c;
-  border-radius: 16px;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(4, 4, 8, 0.6);
+  backdrop-filter: blur(3px);
   padding: 16px;
-  color: #c7c7d6;
-  font-size: 0.85rem;
-  line-height: 1.5;
 }
 
-.ios-hint-icon {
-  flex: 0 0 auto;
-  font-size: 1.4rem;
-  line-height: 1;
+.sheet[hidden] {
+  display: none;
 }
 
-.ios-hint-body {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+.sheet-card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 20px;
+  animation: sheet-up 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
-.ios-hint-body > strong {
-  color: #f2f2f7;
-  font-size: 0.95rem;
+@keyframes sheet-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: none; }
 }
 
-.ios-hint strong {
-  color: #f2f2f7;
+.sheet-card h2 {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+}
+
+.sheet-card p {
+  margin: 0 0 14px;
+  font-size: 0.86rem;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.sheet-card strong {
+  color: var(--text);
+}
+
+.sheet-close {
+  width: 100%;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--brand), var(--brand-deep));
+  color: #fff;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  padding: 12px;
+  cursor: pointer;
 }
 
 .inline-icon {
   width: 15px;
   height: 15px;
   vertical-align: -3px;
-  stroke: #b9b9ff;
+  stroke: var(--live-accent);
 }
 
-.ios-hint-dismiss {
-  align-self: flex-start;
-  margin-top: 2px;
-  border: none;
-  border-radius: 999px;
-  background: #2c2c5c;
-  color: #b9b9ff;
-  font-size: 0.8rem;
-  font-weight: 600;
-  padding: 6px 16px;
+/* ---------- 404 ---------- */
+
+.simple-wrap {
+  position: relative;
+  z-index: 1;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 56px 20px;
 }
 
-/* ---------- player (tela cheia do emulador) ---------- */
+.simple-wrap h1 {
+  font-size: 1.4rem;
+}
+
+.subtitle {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.4;
+  margin-bottom: 20px;
+}
+
+.known-list {
+  padding-left: 20px;
+  color: var(--muted);
+  line-height: 1.9;
+}
+
+.known-list a,
+.simple-wrap a {
+  color: var(--live-accent);
+}
+
+/* =====================================================================
+   PLAYER
+   ===================================================================== */
 
 .player-body {
   height: 100vh;
@@ -388,9 +588,8 @@ html, body {
   overflow: hidden;
   position: relative;
   background: #000;
-  /* Evita puxar a página (pull-to-refresh, bounce, swipe-back) enquanto o
-     polegar tá em cima dos controles virtuais, e some com o menu de
-     copiar/segurar que o iOS mostra em toque longo. */
+  /* Evita pull-to-refresh / voltar por swipe / menu de copiar quando o dedo
+     está em cima dos controles virtuais. */
   touch-action: none;
   overscroll-behavior: none;
   -webkit-user-select: none;
@@ -439,7 +638,7 @@ html, body {
 }
 
 .load-badge--fade {
-  opacity: 0.35;
+  opacity: 0.3;
 }
 
 .play-gate {
@@ -449,10 +648,11 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(circle at 50% 45%, rgba(139, 92, 246, 0.25), transparent 60%), rgba(6, 6, 10, 0.92);
+  background: radial-gradient(circle at 50% 42%, rgba(139, 92, 246, 0.28), transparent 62%),
+    rgba(6, 6, 10, 0.94);
   backdrop-filter: blur(2px);
   cursor: pointer;
-  transition: opacity 0.3s ease;
+  transition: opacity 0.32s ease;
 }
 
 .play-gate--hidden {
@@ -469,56 +669,85 @@ html, body {
   text-align: center;
 }
 
+.play-gate-cover {
+  width: 108px;
+  height: 108px;
+  border-radius: 24px;
+  object-fit: cover;
+  image-rendering: pixelated;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.55), 0 24px 44px -16px rgba(139, 92, 246, 0.7);
+}
+
 .play-gate-btn {
-  width: 76px;
-  height: 76px;
+  width: 72px;
+  height: 72px;
   border-radius: 50%;
   border: none;
-  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+  background: linear-gradient(135deg, var(--brand), var(--brand-deep));
   color: #fff;
-  font-size: 1.6rem;
+  font-size: 1.55rem;
+  font-family: inherit;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding-left: 6px;
-  box-shadow: 0 12px 30px -10px rgba(139, 92, 246, 0.7);
+  padding-left: 5px;
+  cursor: pointer;
+  box-shadow: 0 12px 30px -10px rgba(139, 92, 246, 0.75);
 }
 
-.play-gate-btn:disabled {
+.play-gate-btn.is-loading {
   padding-left: 0;
-  animation: play-gate-spin 1s linear infinite;
+  border: 3px solid rgba(255, 255, 255, 0.28);
+  border-top-color: #fff;
+  background: transparent;
+  box-shadow: none;
+  animation: gate-spin 0.85s linear infinite;
 }
 
-@keyframes play-gate-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-/* O botão real do EmulatorJS (.ejs_start_button) fica escondido — a gente
-   repassa o clique do nosso play-gate pra ele via JS, então ele nunca
-   precisa aparecer na tela. */
-.ejs_start_button {
-  display: none !important;
+@keyframes gate-spin {
+  to { transform: rotate(360deg); }
 }
 
 .play-gate-title {
-  font-size: 1.05rem;
-  font-weight: 600;
-  color: #f2f2f7;
+  font-size: 1.08rem;
+  font-weight: 700;
 }
 
 .play-gate-hint {
   font-size: 0.85rem;
-  color: #a3a3b8;
+  color: var(--muted);
 }
 
-/* Aviso pra girar o celular de verdade. Nada de girar só visualmente por
-   CSS aqui: o EmulatorJS calcula a posição dos controles virtuais com base
-   no tamanho real da janela, e um giro só-visual deixa esse cálculo dele
-   errado (os botões saem do lugar). Isso é só um lembrete — some sozinho
-   quando o orientation:portrait deixa de bater, ou seja, quando a pessoa
-   realmente vira o aparelho. */
+.play-gate-progress {
+  width: 160px;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+
+.play-gate-progress[hidden] {
+  display: none;
+}
+
+.play-gate-progress::after {
+  content: "";
+  display: block;
+  width: 40%;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, var(--brand), transparent);
+  animation: gate-sweep 1.1s ease-in-out infinite;
+}
+
+@keyframes gate-sweep {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(320%); }
+}
+
+/* Aviso de girar o celular. Sem giro "fake" por CSS aqui: o EmulatorJS
+   posiciona os controles virtuais pelo tamanho real da janela, e girar só na
+   aparência espalha os botões pro lugar errado. */
 .rotate-hint {
   position: absolute;
   left: 50%;
@@ -526,9 +755,9 @@ html, body {
   transform: translateX(-50%);
   z-index: 25;
   background: rgba(20, 20, 28, 0.85);
-  color: #f2f2f7;
-  font-size: 0.8rem;
-  padding: 8px 14px;
+  color: var(--text);
+  font-size: 0.78rem;
+  padding: 7px 14px;
   border-radius: 999px;
   backdrop-filter: blur(4px);
   white-space: nowrap;
@@ -537,5 +766,21 @@ html, body {
 @media screen and (orientation: landscape) {
   .rotate-hint {
     display: none;
+  }
+}
+
+/* O botão real do EmulatorJS fica escondido — o play-gate repassa o clique
+   pra ele, então ele nunca precisa aparecer. */
+.ejs_start_button {
+  display: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
