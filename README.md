@@ -90,15 +90,38 @@ de carregamento (core WASM + ROM) até o jogo começar a rodar
 (`EJS_onGameStart`), e loga no console quando um save state é salvo/carregado
 (`EJS_onSaveState` / `EJS_onLoadState`) — usa isso pra validar.
 
+## Tela cheia e paisagem no mobile
+
+O core carrega sozinho em background assim que a página abre
+(`EJS_startOnLoaded = true`), mas **tela cheia real, giro pra paisagem e
+áudio dependem de um toque do usuário** — é restrição do navegador, não dá
+pra disparar isso sozinho no load. Por isso o `/play/:keyId` mostra um botão
+"Toque para jogar em tela cheia" por cima do jogo (que já tá rodando por
+baixo); um toque nesse botão:
+
+1. Pede tela cheia de verdade (`requestFullscreen`), escondendo a barra de
+   endereço/abas do navegador.
+2. Trava a orientação em paisagem (`screen.orientation.lock`), com fallback
+   via CSS (rotação visual) pros navegadores que não deixam travar a
+   orientação de verdade.
+3. Segura a tela ligada (`navigator.wakeLock`), pra não apagar no meio do jogo.
+
+Além disso, `touch-action`/`overscroll-behavior`/`user-select` ficam
+desligados na página do player, pra evitar puxar a página (pull-to-refresh),
+voltar por swipe, ou abrir o menu de copiar/segurar do iOS sem querer
+enquanto o polegar tá em cima dos controles virtuais.
+
 ## Checklist de validação
 
-Testar em viewport mobile (Chrome DevTools > device toolbar):
+Testar em viewport mobile (Chrome DevTools > device toolbar) e, se possível,
+num celular de verdade:
 
-- [ ] `/play/:keyId` abre direto no jogo, sem tela de configuração no meio (`EJS_startOnLoaded = true`)
+- [ ] `/play/:keyId` carrega o jogo sozinho (sem tela de configuração), e o toque no botão "jogar em tela cheia" esconde a UI do navegador e vira a tela pra paisagem
 - [ ] Roda liso em mobile
 - [ ] Jogar um pouco, salvar save state (menu do EmulatorJS), dar F5 → carrega de onde parou
 - [ ] Salvar em `/play/flappybird-nes`, ir em `/play/invaders-nes` → save não vaza entre os dois
 - [ ] Conferir o badge de tempo de carregamento no primeiro load (core WASM é pesado)
+- [ ] Controles virtuais não disparam pull-to-refresh, voltar por swipe ou menu de copiar/segurar
 
 ## Fora de escopo (por enquanto)
 

@@ -50,7 +50,7 @@ const DEFAULT_CORE_STYLE = { glyph: "🕹️", from: "#64748b", to: "#1e293b", a
 
 app.use(express.static(path.join(__dirname, "public")));
 
-// GET / — tela inicial: lista os "chaveiros" mockados
+// GET / — tela inicial: lista os jogos disponíveis
 app.get("/", (req, res) => {
   const keychains = loadKeychains();
 
@@ -68,7 +68,6 @@ app.get("/", (req, res) => {
           <span class="card-cta">Jogar agora
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
           </span>
-          <span class="card-keyid">keyId: ${escapeHtml(keyId)}</span>
         </div>
       </a>
     `;
@@ -80,24 +79,20 @@ app.get("/", (req, res) => {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Chaveiros Retro</title>
+  <title>Joga Retrô</title>
   <link rel="stylesheet" href="/css/style.css" />
 </head>
 <body class="index-body">
   <main class="index-wrap">
     <header class="hero">
       <div class="hero-badge">🕹️</div>
-      <h1>Chaveiros Retro</h1>
-      <p class="hero-tagline">Encosta o chaveiro no leitor e o jogo abre na hora — com o seu progresso salvo automaticamente.</p>
+      <h1>Joga Retrô</h1>
+      <p class="hero-tagline">Escolhe um jogo e começa a jogar na hora — seu progresso fica salvo automaticamente.</p>
     </header>
 
     <div class="card-grid">
       ${cards}
     </div>
-
-    <footer class="index-footer">
-      Demo · em breve isso acontece sozinho ao aproximar o chaveiro do leitor NFC.
-    </footer>
   </main>
 </body>
 </html>`);
@@ -122,13 +117,13 @@ app.get("/play/:keyId", (req, res) => {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Chaveiro não encontrado</title>
+  <title>Jogo não encontrado</title>
   <link rel="stylesheet" href="/css/style.css" />
 </head>
 <body class="index-body">
   <main class="index-wrap">
-    <h1>Chaveiro "${escapeHtml(keyId)}" não encontrado</h1>
-    <p class="subtitle">Chaveiros cadastrados em config/keychains.json:</p>
+    <h1>Jogo "${escapeHtml(keyId)}" não encontrado</h1>
+    <p class="subtitle">IDs cadastrados em config/keychains.json:</p>
     <ul class="known-list">${known}</ul>
     <p><a href="/">&larr; voltar</a></p>
   </main>
@@ -150,6 +145,14 @@ app.get("/play/:keyId", (req, res) => {
   <a href="/" class="back-btn" aria-label="Voltar">&larr;</a>
   <div id="game" class="game-container"></div>
 
+  <div id="play-gate" class="play-gate">
+    <div class="play-gate-inner">
+      <button type="button" id="play-gate-btn" class="play-gate-btn" aria-label="Jogar em tela cheia">▶</button>
+      <div class="play-gate-title">${escapeHtml(cfg.title)}</div>
+      <div class="play-gate-hint">Toque para jogar em tela cheia</div>
+    </div>
+  </div>
+
   <script>
     (function () {
       var loadStartedAt = performance.now();
@@ -159,7 +162,7 @@ app.get("/play/:keyId", (req, res) => {
       window.EJS_core = ${escapeJs(cfg.core)};
       window.EJS_gameUrl = ${escapeJs(cfg.gameUrl)};
       window.EJS_pathtodata = ${escapeJs(EJS_CDN_URL)};
-      // keyId = "chaveiro" lido; separa o save state de cada chaveiro no IndexedDB do navegador
+      // Identificador do jogo, usado pelo EmulatorJS pra separar o save state de cada jogo no IndexedDB do navegador
       window.EJS_gameID = ${escapeJs(keyId)};
       window.EJS_gameName = ${escapeJs(cfg.title)};
       window.EJS_startOnLoaded = true;
@@ -168,28 +171,44 @@ app.get("/play/:keyId", (req, res) => {
       window.EJS_onGameStart = function () {
         var seconds = ((performance.now() - loadStartedAt) / 1000).toFixed(1);
         badge.textContent = "carregado em " + seconds + "s";
-        console.log("[retro-demo] jogo iniciado em " + seconds + "s, keyId=" + ${escapeJs(keyId)});
+        console.log("[retro-demo] jogo iniciado em " + seconds + "s, id=" + ${escapeJs(keyId)});
         setTimeout(function () { badge.classList.add("load-badge--fade"); }, 2500);
-
-        // Gira a tela pra paisagem no celular assim que o jogo começa.
-        // CSS cuida do giro visual (garante mesmo sem gesto do usuário); isso aqui
-        // é só uma tentativa extra de girar o dispositivo de verdade quando o
-        // navegador permitir.
-        document.documentElement.classList.add("force-landscape");
-        try {
-          if (screen.orientation && screen.orientation.lock) {
-            screen.orientation.lock("landscape").catch(function () {});
-          }
-        } catch (e) {}
       };
 
       window.EJS_onSaveState = function () {
-        console.log("[retro-demo] save state gravado para keyId=" + ${escapeJs(keyId)});
+        console.log("[retro-demo] save state gravado para id=" + ${escapeJs(keyId)});
       };
 
       window.EJS_onLoadState = function () {
-        console.log("[retro-demo] save state carregado para keyId=" + ${escapeJs(keyId)});
+        console.log("[retro-demo] save state carregado para id=" + ${escapeJs(keyId)});
       };
+
+      // Tela cheia real, giro pra paisagem e som exigem um toque do usuário
+      // pra funcionar nos navegadores mobile — não rola disparar isso sozinho
+      // no load. Esse botão é justamente esse toque.
+      var gate = document.getElementById("play-gate");
+      function dismissGate() {
+        gate.classList.add("play-gate--hidden");
+        setTimeout(function () { gate.remove(); }, 300);
+      }
+      gate.addEventListener("click", function () {
+        var el = document.documentElement;
+        var request = (el.requestFullscreen && el.requestFullscreen())
+          || (el.webkitRequestFullscreen && el.webkitRequestFullscreen())
+          || Promise.resolve();
+        Promise.resolve(request).catch(function () {}).then(function () {
+          document.documentElement.classList.add("force-landscape");
+          try {
+            if (screen.orientation && screen.orientation.lock) {
+              screen.orientation.lock("landscape").catch(function () {});
+            }
+          } catch (e) {}
+        });
+        if ("wakeLock" in navigator) {
+          navigator.wakeLock.request("screen").catch(function () {});
+        }
+        dismissGate();
+      }, { once: true });
     })();
   </script>
   <script src="${EJS_CDN_URL}loader.js"></script>
