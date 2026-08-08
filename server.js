@@ -48,6 +48,19 @@ const CORE_STYLE = {
 };
 const DEFAULT_CORE_STYLE = { glyph: "🕹️", from: "#64748b", to: "#1e293b", accent: "#cbd5e1" };
 
+// iOS (Safari e qualquer outro navegador lá, todos rodam em cima da WebKit)
+// não deixa esconder a barra de endereço/abas de uma aba normal — só quando
+// a página é aberta a partir de um ícone salvo na Tela de Início. Essas tags
+// habilitam esse modo "standalone" sem barra nenhuma quando o usuário salva.
+const PWA_HEAD = `
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="theme-color" content="#0b0b12" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Joga Retrô" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />`;
+
 app.use(express.static(path.join(__dirname, "public")));
 
 // GET / — tela inicial: lista os jogos disponíveis
@@ -80,7 +93,7 @@ app.get("/", (req, res) => {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Joga Retrô</title>
-  <link rel="stylesheet" href="/css/style.css" />
+  <link rel="stylesheet" href="/css/style.css" />${PWA_HEAD}
 </head>
 <body class="index-body">
   <main class="index-wrap">
@@ -93,7 +106,28 @@ app.get("/", (req, res) => {
     <div class="card-grid">
       ${cards}
     </div>
+
+    <div id="ios-hint" class="ios-hint" hidden>
+      <span>📲 No iPhone, pra jogar sem a barra do navegador: toque em <strong>Compartilhar</strong> → <strong>Adicionar à Tela de Início</strong>.</span>
+      <button type="button" id="ios-hint-close" class="ios-hint-close" aria-label="Fechar dica">&times;</button>
+    </div>
   </main>
+
+  <script>
+    (function () {
+      var isIos = /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
+      var isStandalone = window.navigator.standalone === true || window.matchMedia("(display-mode: standalone)").matches;
+      var dismissed = localStorage.getItem("retro-demo-ios-hint-dismissed") === "1";
+      if (isIos && !isStandalone && !dismissed) {
+        var hint = document.getElementById("ios-hint");
+        hint.hidden = false;
+        document.getElementById("ios-hint-close").addEventListener("click", function () {
+          hint.hidden = true;
+          localStorage.setItem("retro-demo-ios-hint-dismissed", "1");
+        });
+      }
+    })();
+  </script>
 </body>
 </html>`);
 });
@@ -118,7 +152,7 @@ app.get("/play/:keyId", (req, res) => {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Jogo não encontrado</title>
-  <link rel="stylesheet" href="/css/style.css" />
+  <link rel="stylesheet" href="/css/style.css" />${PWA_HEAD}
 </head>
 <body class="index-body">
   <main class="index-wrap">
@@ -138,7 +172,7 @@ app.get("/play/:keyId", (req, res) => {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <title>${escapeHtml(cfg.title)}</title>
-  <link rel="stylesheet" href="/css/style.css" />
+  <link rel="stylesheet" href="/css/style.css" />${PWA_HEAD}
 </head>
 <body class="player-body">
   <div id="load-badge" class="load-badge">carregando core + rom...</div>
@@ -147,9 +181,9 @@ app.get("/play/:keyId", (req, res) => {
 
   <div id="play-gate" class="play-gate">
     <div class="play-gate-inner">
-      <button type="button" id="play-gate-btn" class="play-gate-btn" aria-label="Jogar em tela cheia">▶</button>
+      <button type="button" id="play-gate-btn" class="play-gate-btn" aria-label="Jogar">▶</button>
       <div class="play-gate-title">${escapeHtml(cfg.title)}</div>
-      <div class="play-gate-hint">Toque para jogar em tela cheia</div>
+      <div id="play-gate-hint" class="play-gate-hint">Toque para jogar</div>
     </div>
   </div>
 
@@ -186,6 +220,20 @@ app.get("/play/:keyId", (req, res) => {
       // Tela cheia real, giro pra paisagem e som exigem um toque do usuário
       // pra funcionar nos navegadores mobile — não rola disparar isso sozinho
       // no load. Esse botão é justamente esse toque.
+      //
+      // No iOS (Safari, Chrome, qualquer um — todos rodam em cima da WebKit),
+      // requestFullscreen() de página normal simplesmente não existe: o único
+      // jeito de sumir com a barra do navegador lá é abrir a partir de um
+      // ícone salvo na Tela de Início (ver dica na tela inicial). Por isso o
+      // texto do botão só promete "tela cheia" quando o navegador realmente
+      // suporta.
+      var canFullscreen = !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+      var isStandalone = window.navigator.standalone === true || window.matchMedia("(display-mode: standalone)").matches;
+      var hint = document.getElementById("play-gate-hint");
+      if (canFullscreen && !isStandalone) {
+        hint.textContent = "Toque para jogar em tela cheia";
+      }
+
       var gate = document.getElementById("play-gate");
       function dismissGate() {
         gate.classList.add("play-gate--hidden");
@@ -193,9 +241,9 @@ app.get("/play/:keyId", (req, res) => {
       }
       gate.addEventListener("click", function () {
         var el = document.documentElement;
-        var request = (el.requestFullscreen && el.requestFullscreen())
-          || (el.webkitRequestFullscreen && el.webkitRequestFullscreen())
-          || Promise.resolve();
+        var request = canFullscreen
+          ? ((el.requestFullscreen && el.requestFullscreen()) || (el.webkitRequestFullscreen && el.webkitRequestFullscreen()))
+          : null;
         Promise.resolve(request).catch(function () {}).then(function () {
           document.documentElement.classList.add("force-landscape");
           try {

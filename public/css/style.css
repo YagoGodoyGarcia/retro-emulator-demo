@@ -170,6 +170,39 @@ html, body {
   color: #b9b9ff;
 }
 
+.ios-hint {
+  margin-top: 28px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #14141c;
+  border: 1px solid #24242f;
+  border-radius: 14px;
+  padding: 12px 14px;
+  color: #c7c7d6;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.ios-hint strong {
+  color: #f2f2f7;
+}
+
+.ios-hint-close {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 50%;
+  background: #24242f;
+  color: #a3a3b8;
+  font-size: 1rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /* ---------- player (tela cheia do emulador) ---------- */
 
 .player-body {

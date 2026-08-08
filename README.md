@@ -111,6 +111,31 @@ desligados na página do player, pra evitar puxar a página (pull-to-refresh),
 voltar por swipe, ou abrir o menu de copiar/segurar do iOS sem querer
 enquanto o polegar tá em cima dos controles virtuais.
 
+### iOS (Safari, Chrome, qualquer um) não deixa esconder a barra do navegador
+
+Isso é limitação da Apple, não bug daqui: toda WebKit em iOS/iPadOS bloqueia
+`requestFullscreen()` numa aba normal — só funciona quando a página é aberta
+a partir de um ícone salvo na **Tela de Início** (modo "standalone"). Por
+isso:
+
+- O app já vem com `manifest.webmanifest` + meta tags da Apple
+  (`apple-mobile-web-app-capable`, ícone em `public/icons/`) prontos pro
+  "Adicionar à Tela de Início" abrir sem nenhuma barra.
+- A tela inicial mostra um aviso pra quem tá no iOS fora do modo standalone,
+  explicando o Compartilhar → Adicionar à Tela de Início (some depois que a
+  pessoa fecha, guardado no `localStorage`).
+- O botão "toque pra jogar" detecta `document.fullscreenEnabled` e só promete
+  "tela cheia" quando o navegador realmente suporta (Android/Chrome
+  desktop) — no iOS ele só diz "Toque para jogar", sem prometer o que não
+  pode entregar.
+- O giro pra paisagem (`screen.orientation.lock`) também não é suportado em
+  iOS; quem carrega essa parte lá é só o fallback via CSS, que já funciona
+  independente disso.
+
+Resumindo: no Android e desktop o botão já esconde a UI do navegador sozinho.
+No iPhone, o caminho é a pessoa salvar o link na Tela de Início uma vez — daí
+abre sempre em tela cheia de verdade.
+
 ## Checklist de validação
 
 Testar em viewport mobile (Chrome DevTools > device toolbar) e, se possível,
