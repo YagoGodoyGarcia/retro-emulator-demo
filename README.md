@@ -50,6 +50,40 @@ Implementação é só CSS transform + Pointer Events puro (sem lib de
 carrossel) — mantém a pegada "sem framework pesado" do projeto e fica leve
 em qualquer celular.
 
+### Capa = screenshot real do jogo
+
+Cada card mostra o screenshot de verdade do jogo (`public/covers/`), não um
+ícone genérico — dá pra ver como o jogo é antes de escolher. As imagens vêm
+do mesmo repositório `retrobrews` das ROMs (cada jogo lá já vem com
+`.nes`/`.smc`/`.gba`/`.bin` + screenshot + texto), então é a mesma fonte já
+usada no projeto. `image-rendering: pixelated` no CSS evita borrar a pixel
+art ao esticar pra 152px.
+
+### Tema dinâmico por cor da capa
+
+Quando o carrossel muda de jogo ativo, o app lê a **cor média da capa** (via
+`<canvas>`, client-side, sem lib) e usa isso pra:
+- Pintar o brilho/contorno ao redor da capa ativa e o texto do console
+  (`--accent`, um `hsl()` derivado da cor extraída).
+- Trocar o fundo da tela inteira com um **crossfade suave** (duas camadas
+  `.theme-backdrop` empilhadas, uma entra em `opacity` enquanto a outra
+  sai — mais confiável entre navegadores do que tentar animar um
+  `background` com gradiente diretamente).
+
+A cor de cada capa é extraída uma vez só e fica em cache (`colorCache` no
+script da tela inicial) — trocar de jogo e voltar não recalcula.
+
+## Busca inteligente por tema
+
+Além de nome e gênero, cada jogo tem uma lista de **tags temáticas** em
+`config/keychains.json` (campo `tags`) — palavras-chave sobre o clima/tema
+do jogo, não só o que está literalmente no título. Por isso buscar
+`guerra` encontra `Invaders`, `Sgt. Helmet Training Day`,
+`N-Warp Daisakusen`, `Astro Hawk`, `Metal Warrior 4` e `Astro Perdido` —
+nenhum desses títulos tem a palavra "guerra" escrita, mas todos são sobre
+combate/conflito. O filtro (`computeVisible` no script) já casava
+título+gênero; agora também varre `data-tags`.
+
 ## Biblioteca de jogos
 
 Mapeamento em `config/keychains.json`. Cada entrada:
@@ -61,13 +95,20 @@ Mapeamento em `config/keychains.json`. Cada entrada:
     "gameUrl": "/roms/flappybird.nes",
     "gameId": "flappybird-nes",
     "title": "Flappy Bird",
-    "genre": "Reflexo"
+    "genre": "Reflexo",
+    "cover": "flappybird-nes.png",
+    "tags": ["pássaro", "voo", "obstáculo", "aves", "reflexo"]
   }
 }
 ```
 
-27 jogos, em 4 cores (`nes`, `snes`, `gba`, `segaMD`) — busca por nome/gênero
-e filtro por console ficam embutidos no próprio carrossel da tela inicial.
+`cover` é o nome do arquivo em `public/covers/` (aceita `.png`/`.gif`/`.jpg`,
+o que o screenshot original do jogo já era). `tags` é a lista de
+palavras-chave temáticas usada na busca inteligente (ver seção acima).
+
+27 jogos, em 4 cores (`nes`, `snes`, `gba`, `segaMD`) — busca por nome/gênero/
+tema e filtro por console ficam embutidos no próprio carrossel da tela
+inicial.
 
 | id                      | core   | jogo                          | gênero          |
 |-------------------------|--------|-------------------------------|------------------|
@@ -241,6 +282,9 @@ Testar em viewport mobile (Chrome DevTools > device toolbar) e, se possível,
 num celular de verdade:
 
 - [ ] Na tela inicial, arrastar o carrossel navega pelas capas e o painel embaixo ("Jogar agora") atualiza junto
+- [ ] Todas as capas mostram o screenshot do jogo (nenhuma quebrada/genérica)
+- [ ] Trocar de jogo no carrossel muda o fundo da tela e o brilho da capa ativa pra combinar com as cores daquela capa
+- [ ] Buscar por um tema (ex: "guerra", "espaço", "fantasia") encontra jogos mesmo sem a palavra aparecer no título
 - [ ] Buscar por gênero (ex: "nave", "corrida") e trocar o filtro de console reduzem o carrossel na hora, sem recarregar a página
 - [ ] `/play/:keyId` carrega o jogo sozinho (sem tela de configuração), e o toque no botão "jogar em tela cheia" esconde a UI do navegador e vira a tela pra paisagem
 - [ ] Roda liso em mobile

@@ -129,17 +129,19 @@ app.get("/", (req, res) => {
     .map(([keyId, cfg]) => {
       const style = CORE_STYLE[cfg.core] || DEFAULT_CORE_STYLE;
       const genre = cfg.genre || "";
+      const tags = (cfg.tags || []).join(" ").toLowerCase();
       return `<button type="button" class="carousel-item"
         data-href="/play/${encodeURIComponent(keyId)}"
         data-core="${escapeHtml(cfg.core)}"
         data-title="${escapeHtml(cfg.title.toLowerCase())}"
         data-genre="${escapeHtml(genre.toLowerCase())}"
+        data-tags="${escapeHtml(tags)}"
         data-title-label="${escapeHtml(cfg.title)}"
         data-genre-label="${escapeHtml(genre)}"
         data-console-label="${escapeHtml(style.label)}"
         style="--accent:${style.accent};--cover-from:${style.from};--cover-to:${style.to}"
         aria-label="${escapeHtml(cfg.title)}"
-      ><span class="carousel-cover-glyph" aria-hidden="true">${style.glyph}</span></button>`;
+      ><img class="carousel-cover-img" src="/covers/${encodeURIComponent(cfg.cover)}" alt="" loading="lazy" draggable="false" /></button>`;
     })
     .join("\n");
 
@@ -152,6 +154,8 @@ app.get("/", (req, res) => {
   <link rel="stylesheet" href="/css/style.css" />${PWA_HEAD}
 </head>
 <body class="index-body">
+  <div class="theme-backdrop" id="theme-backdrop-a"></div>
+  <div class="theme-backdrop" id="theme-backdrop-b"></div>
   <main class="index-wrap index-wrap--carousel">
     <header class="hero hero--compact">
       <h1><span aria-hidden="true">🕹️</span> Joga Retrô</h1>
@@ -238,10 +242,15 @@ app.get("/", (req, res) => {
       var npGenre = document.getElementById("now-playing-genre");
       var npTitle = document.getElementById("now-playing-title");
       var npLink = document.getElementById("now-playing-link");
+      var backdropA = document.getElementById("theme-backdrop-a");
+      var backdropB = document.getElementById("theme-backdrop-b");
 
       var visible = itemsAll.slice();
       var activeIndex = 0;
       var activeFilter = "all";
+      var frontBackdrop = backdropA;
+      var backBackdrop = backdropB;
+      var colorCache = {};
 
       function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
 
@@ -257,6 +266,7 @@ app.get("/", (req, res) => {
           item.style.opacity = "0";
           item.style.pointerEvents = "none";
           item.style.zIndex = "0";
+          item.classList.remove("is-active");
         });
 
         visible.forEach(function (item, i) {
@@ -272,11 +282,11 @@ app.get("/", (req, res) => {
           item.style.height = size + "px";
           item.style.marginLeft = (-size / 2) + "px";
           item.style.marginTop = (-size / 2) + "px";
-          item.style.fontSize = Math.round(size * 0.42) + "px";
           item.style.transform = "translateX(" + translateX + "px) translateZ(" + z + "px) rotateY(" + rotateY + "deg) scale(" + scale + ")";
           item.style.opacity = String(opacity);
           item.style.pointerEvents = "auto";
           item.style.zIndex = String(200 - Math.round(absPos * 10));
+          if (absPos < 0.01 && !dragPx) item.classList.add("is-active");
         });
       }
 
@@ -294,18 +304,97 @@ app.get("/", (req, res) => {
         npLink.href = item.dataset.href;
       }
 
+      // ---- Tema dinâmico: extrai a cor média da capa ativa (canvas) e
+      // usa pra pintar o destaque do jogo + o fundo da tela, com um
+      // crossfade suave entre a cor antiga e a nova a cada troca. ----
+      function rgbToHsl(r, g, b) {
+        r /= 255; g /= 255; b /= 255;
+        var max = Math.max(r, g, b), min = Math.min(r, g, b);
+        var h = 0, s = 0, l = (max + min) / 2;
+        if (max !== min) {
+          var d = max - min;
+          s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+          if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
+          else if (max === g) h = (b - r) / d + 2;
+          else h = (r - g) / d + 4;
+          h /= 6;
+        }
+        return [h * 360, s * 100, l * 100];
+      }
+
+      function waitForImage(img) {
+        return new Promise(function (resolve) {
+          if (img.complete && img.naturalWidth) { resolve(); return; }
+          img.addEventListener("load", function () { resolve(); }, { once: true });
+          img.addEventListener("error", function () { resolve(); }, { once: true });
+        });
+      }
+
+      function extractTheme(item) {
+        var id = item.dataset.href;
+        if (colorCache[id]) return Promise.resolve(colorCache[id]);
+        var img = item.querySelector(".carousel-cover-img");
+        return waitForImage(img).then(function () {
+          try {
+            var w = 20, h = 20;
+            var canvas = document.createElement("canvas");
+            canvas.width = w; canvas.height = h;
+            var ctx = canvas.getContext("2d");
+            ctx.drawImage(img, 0, 0, w, h);
+            var data = ctx.getImageData(0, 0, w, h).data;
+            var r = 0, g = 0, b = 0, count = 0;
+            for (var i = 0; i < data.length; i += 4) {
+              if (data[i + 3] < 100) continue;
+              r += data[i]; g += data[i + 1]; b += data[i + 2];
+              count++;
+            }
+            if (!count) throw new Error("no opaque pixels");
+            var hsl = rgbToHsl(r / count, g / count, b / count);
+            var hue = hsl[0];
+            var sat = clamp(hsl[1], 42, 80);
+            var theme = {
+              accent: "hsl(" + hue.toFixed(0) + ", " + sat.toFixed(0) + "%, 72%)",
+              bgFrom: "hsl(" + hue.toFixed(0) + ", " + Math.min(sat, 55).toFixed(0) + "%, 15%)",
+              bgTo: "hsl(" + hue.toFixed(0) + ", " + Math.min(sat, 45).toFixed(0) + "%, 5%)",
+            };
+            colorCache[id] = theme;
+            return theme;
+          } catch (e) {
+            return null;
+          }
+        });
+      }
+
+      function applyTheme(item) {
+        extractTheme(item).then(function (theme) {
+          if (!theme) return;
+          item.style.setProperty("--accent", theme.accent);
+          if (visible[activeIndex] === item) {
+            npConsole.style.color = theme.accent;
+          }
+          var bg = "radial-gradient(circle at 50% 20%, " + theme.bgFrom + ", " + theme.bgTo + " 75%)";
+          backBackdrop.style.background = bg;
+          backBackdrop.style.opacity = "1";
+          frontBackdrop.style.opacity = "0";
+          var swap = frontBackdrop;
+          frontBackdrop = backBackdrop;
+          backBackdrop = swap;
+        });
+      }
+
       function goTo(index) {
         if (!visible.length) return;
         activeIndex = clamp(index, 0, visible.length - 1);
         layout();
         updateNowPlaying();
+        applyTheme(visible[activeIndex]);
       }
 
       function computeVisible() {
         var query = searchInput.value.trim().toLowerCase();
         visible = itemsAll.filter(function (item) {
           var matchesCore = activeFilter === "all" || item.dataset.core === activeFilter;
-          var haystack = item.dataset.title + " " + item.dataset.genre;
+          var haystack = item.dataset.title + " " + item.dataset.genre + " " + item.dataset.tags;
           var matchesQuery = query === "" || haystack.indexOf(query) !== -1;
           return matchesCore && matchesQuery;
         });
@@ -313,6 +402,7 @@ app.get("/", (req, res) => {
         emptyState.hidden = visible.length !== 0;
         layout();
         updateNowPlaying();
+        if (visible.length) applyTheme(visible[activeIndex]);
       }
 
       prevBtn.addEventListener("click", function () { goTo(activeIndex - 1); });
