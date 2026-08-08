@@ -25,9 +25,18 @@ html, body {
   padding: 48px 20px 48px;
 }
 
+.index-wrap--carousel {
+  max-width: 560px;
+  padding-top: 28px;
+}
+
 .hero {
   text-align: center;
   padding-bottom: 32px;
+}
+
+.hero--compact {
+  padding-bottom: 18px;
 }
 
 .hero-badge {
@@ -47,6 +56,11 @@ html, body {
   color: transparent;
 }
 
+.hero--compact h1 {
+  font-size: 1.4rem;
+  margin: 0;
+}
+
 .hero-tagline {
   color: #a3a3b8;
   font-size: 0.95rem;
@@ -56,12 +70,6 @@ html, body {
 }
 
 .library-controls {
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  background: #0b0b12;
-  padding: 10px 0 16px;
-  margin: -10px 0 4px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -128,12 +136,6 @@ html, body {
   color: #d8d4ff;
 }
 
-.card-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 12px;
-}
-
 .empty-state {
   text-align: center;
   color: #6f6f85;
@@ -141,77 +143,139 @@ html, body {
   padding: 32px 0;
 }
 
-.card {
+/* ---------- carrossel 3D (tipo coverflow) ---------- */
+
+.carousel-wrap {
   display: flex;
   align-items: center;
-  gap: 14px;
-  background: #14141c;
-  border: 1px solid #24242f;
-  border-radius: 18px;
-  padding: 12px;
-  text-decoration: none;
-  color: inherit;
-  transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+  gap: 2px;
+  margin-top: 8px;
 }
 
-/* display:flex acima ganha do [hidden] nativo do navegador (mesma
-   especificidade, mas author style vence a UA stylesheet) — sem isso o
-   filtro/busca escondia os cards só nos dados, não visualmente. */
-.card[hidden] {
-  display: none;
+.carousel {
+  flex: 1;
+  min-width: 0;
+  height: 210px;
+  position: relative;
+  perspective: 1100px;
+  overflow: hidden;
+  touch-action: pan-y;
+  cursor: grab;
+  outline: none;
 }
 
-.card:active {
-  transform: scale(0.97);
+.carousel:active {
+  cursor: grabbing;
 }
 
-@media (hover: hover) {
-  .card:hover {
-    border-color: var(--accent);
-    box-shadow: 0 10px 28px -16px var(--accent);
-  }
+.carousel-track {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
 }
 
-.card-cover {
-  flex: 0 0 64px;
-  width: 64px;
-  height: 64px;
-  border-radius: 14px;
+.carousel-item {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 152px;
+  height: 152px;
+  margin: -76px 0 0 -76px;
+  border: none;
+  border-radius: 22px;
+  background: linear-gradient(135deg, var(--cover-from), var(--cover-to));
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.9rem;
-  background: linear-gradient(135deg, var(--cover-from), var(--cover-to));
-  position: relative;
-  overflow: hidden;
+  font-size: 3.2rem;
+  padding: 0;
+  opacity: 0;
+  transition: transform 0.4s cubic-bezier(0.22, 0.68, 0, 1.01), opacity 0.4s ease;
+  will-change: transform, opacity;
+  box-shadow: 0 22px 40px -18px rgba(0, 0, 0, 0.65);
 }
 
-.card-cover::after {
+.carousel-item::after {
   content: "";
   position: absolute;
   inset: 0;
+  border-radius: 22px;
   background: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.08) 0 2px, transparent 2px 4px);
   mix-blend-mode: overlay;
 }
 
-.card-cover-glyph {
+.carousel-cover-glyph {
   position: relative;
-  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35));
+  filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.4));
 }
 
-.card-body {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.card-tags {
+.carousel-nav {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid #24242f;
+  background: #14141c;
+  color: #c7c7d6;
   display: flex;
   align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.carousel-nav svg {
+  width: 17px;
+  height: 17px;
+}
+
+.carousel-nav:active {
+  background: #1c1c28;
+}
+
+.now-playing {
+  text-align: center;
+  margin-top: 20px;
+  min-height: 118px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   gap: 6px;
-  flex-wrap: wrap;
+}
+
+.now-playing-tags {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.now-playing-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.play-btn {
+  margin-top: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.95rem;
+  padding: 13px 28px;
+  border-radius: 999px;
+  text-decoration: none;
+  box-shadow: 0 16px 32px -14px rgba(139, 92, 246, 0.75);
+}
+
+.play-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.play-btn:active {
+  transform: scale(0.97);
 }
 
 .card-console-tag {
@@ -225,33 +289,8 @@ html, body {
 .card-genre-tag {
   font-size: 0.68rem;
   color: #6f6f85;
-  padding-left: 6px;
+  padding-left: 8px;
   border-left: 1px solid #33333f;
-}
-
-.card-title {
-  font-size: 1.02rem;
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.card-cta {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 0.8rem;
-  color: #8f8fa8;
-}
-
-.card-cta svg {
-  width: 14px;
-  height: 14px;
-}
-
-.card:active .card-cta {
-  color: var(--accent);
 }
 
 .subtitle {

@@ -23,9 +23,32 @@ Abre em `http://localhost:3000`.
 
 ## Rotas
 
-- `GET /` — index de teste com os chaveiros mockados (cards que levam pra `/play/:keyId`, simulando o redirect que o NFC vai fazer depois).
-- `GET /play/:keyId` — tela cheia do EmulatorJS já configurado pro jogo daquele `keyId`. Se o `keyId` não existir em `config/keychains.json`, mostra 404 com a lista dos chaveiros válidos.
+- `GET /` — tela inicial com o carrossel 3D da biblioteca (ver seção abaixo). Cada capa leva pra `/play/:keyId`, simulando o redirect que o NFC vai fazer depois.
+- `GET /play/:keyId` — tela cheia do EmulatorJS já configurado pro jogo daquele `keyId`. Se o `keyId` não existir em `config/keychains.json`, mostra 404 com a lista dos IDs válidos.
 - `GET /api/keychains` — JSON com o mapeamento `keyId -> config`, útil pra debug.
+
+## Carrossel 3D da tela inicial
+
+Em vez de lista/grid rolável, a tela inicial usa um carrossel estilo
+CoverFlow: a capa ativa fica grande e de frente, as vizinhas encolhem, giram
+no eixo Y e ficam pra trás (`perspective` + `rotateY` + `translateZ` em
+`public/css/style.css`), tudo dentro de uma altura fixa — a experiência
+inteira (busca, filtro, escolher e ir pro jogo) cabe numa tela só, sem
+precisar rolar.
+
+Como navegar:
+- **Arrasta** a capa ativa pra esquerda/direita (mouse ou touch, via
+  Pointer Events) — solta e ela "estala" pro jogo mais próximo.
+- **Toca numa capa lateral** — ela vira a ativa. Toca de novo (ou no botão
+  "Jogar agora" embaixo) — abre o jogo.
+- Setas ‹ › do lado, ou ← → do teclado com o carrossel focado.
+- Busca e os chips de console (NES/SNES/GBA/Mega Drive) recalculam na hora
+  quais capas entram no carrossel — tudo client-side, sem round-trip pro
+  servidor, então cada tecla digitada responde na hora.
+
+Implementação é só CSS transform + Pointer Events puro (sem lib de
+carrossel) — mantém a pegada "sem framework pesado" do projeto e fica leve
+em qualquer celular.
 
 ## Biblioteca de jogos
 
@@ -43,21 +66,42 @@ Mapeamento em `config/keychains.json`. Cada entrada:
 }
 ```
 
-10 jogos, em 3 cores (`nes`, `snes`, `gba`) — dá pra buscar por nome/gênero e
-filtrar por console direto na tela inicial:
+27 jogos, em 4 cores (`nes`, `snes`, `gba`, `segaMD`) — busca por nome/gênero
+e filtro por console ficam embutidos no próprio carrossel da tela inicial.
 
-| id                    | core | jogo                | gênero          |
-|-----------------------|------|---------------------|------------------|
-| `flappybird-nes`      | nes  | Flappy Bird         | Reflexo          |
-| `invaders-nes`        | nes  | Invaders            | Nave / Tiro      |
-| `cheril-nes`          | nes  | Cheril the Goddess  | Plataforma       |
-| `driar-nes`           | nes  | Driar               | Ação-aventura    |
-| `bootee-nes`          | nes  | Bootee              | Plataforma       |
-| `assimilate-nes`      | nes  | Assimilate          | Metroidvania     |
-| `rockfall-snes`       | snes | Rockfall            | Puzzle / Ação    |
-| `nwarp-snes`          | snes | N-Warp Daisakusen   | Nave / Tiro      |
-| `anguna-gba`          | gba  | Anguna              | Ação-aventura    |
-| `metalwarrior4-gba`   | gba  | Metal Warrior 4     | Ação-RPG         |
+| id                      | core   | jogo                          | gênero          |
+|-------------------------|--------|-------------------------------|------------------|
+| `flappybird-nes`        | nes    | Flappy Bird                   | Reflexo          |
+| `invaders-nes`          | nes    | Invaders                      | Nave / Tiro      |
+| `cheril-nes`            | nes    | Cheril the Goddess            | Plataforma       |
+| `driar-nes`             | nes    | Driar                         | Ação-aventura    |
+| `bootee-nes`            | nes    | Bootee                        | Plataforma       |
+| `assimilate-nes`        | nes    | Assimilate                    | Metroidvania     |
+| `nova-nes`              | nes    | Nova the Squirrel              | Plataforma       |
+| `twindragons-nes`       | nes    | Twin Dragons                  | Plataforma       |
+| `owlia-nes`             | nes    | The Legends of Owlia          | Ação-aventura    |
+| `nomolos-nes`           | nes    | Nomolos: Storming the Catsle  | Plataforma       |
+| `sgthelmet-nes`         | nes    | Sgt. Helmet Training Day      | Plataforma       |
+| `supertiltbro-nes`      | nes    | Super Tilt Bro                | Luta             |
+| `rockfall-snes`         | snes   | Rockfall                      | Puzzle / Ação    |
+| `nwarp-snes`            | snes   | N-Warp Daisakusen             | Nave / Tiro      |
+| `astrohawk-snes`        | snes   | Astro Hawk                    | Nave / Tiro      |
+| `hilda-snes`            | snes   | Hilda                         | Aventura         |
+| `superbossgaiden-snes`  | snes   | Super Boss Gaiden             | Ação             |
+| `anguna-gba`            | gba    | Anguna                        | Ação-aventura    |
+| `metalwarrior4-gba`     | gba    | Metal Warrior 4               | Ação-RPG         |
+| `airball-gba`           | gba    | Airball                       | Puzzle / Ação    |
+| `castlemaster-gba`      | gba    | Castlemaster                  | Estratégia       |
+| `hexavirus-gba`         | gba    | Hexavirus                     | Puzzle           |
+| `spout-gba`             | gba    | Spout                         | Puzzle / Física  |
+| `junkbots-md`           | segaMD | Junkbots                      | Ação             |
+| `astroperdido-md`       | segaMD | Astro Perdido                 | Nave / Tiro      |
+| `downforce-md`          | segaMD | Downforce                     | Corrida          |
+| `miniplanets-md`        | segaMD | Miniplanets                   | Puzzle / Ação    |
+
+`public/roms/` já passou de ~14MB com essa lista toda — segue tranquilo bem
+abaixo do limite de bundle de qualquer plano da Vercel, mas é bom saber que
+tá crescendo se for continuar adicionando jogos.
 
 ### Sobre as ROMs (e por que não tem Mario/Sonic)
 
@@ -171,6 +215,8 @@ instrução bem clara, que é o que o aviso na tela inicial faz.
 Testar em viewport mobile (Chrome DevTools > device toolbar) e, se possível,
 num celular de verdade:
 
+- [ ] Na tela inicial, arrastar o carrossel navega pelas capas e o painel embaixo ("Jogar agora") atualiza junto
+- [ ] Buscar por gênero (ex: "nave", "corrida") e trocar o filtro de console reduzem o carrossel na hora, sem recarregar a página
 - [ ] `/play/:keyId` carrega o jogo sozinho (sem tela de configuração), e o toque no botão "jogar em tela cheia" esconde a UI do navegador e vira a tela pra paisagem
 - [ ] Roda liso em mobile
 - [ ] Jogar um pouco, salvar save state (menu do EmulatorJS), dar F5 → carrega de onde parou

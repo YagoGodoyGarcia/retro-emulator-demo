@@ -41,11 +41,12 @@ function escapeJs(str) {
   return JSON.stringify(String(str));
 }
 
-// Estilo visual por core, só pra deixar os cards da tela inicial mais convidativos
+// Estilo visual por core, só pra deixar as capas do carrossel mais convidativas
 const CORE_STYLE = {
   nes: { label: "NES", glyph: "👾", from: "#8b5cf6", to: "#2e1065", accent: "#c4b5fd" },
   snes: { label: "SNES", glyph: "🎮", from: "#14b8a6", to: "#0f3d38", accent: "#5eead4" },
   gba: { label: "GBA", glyph: "⚔️", from: "#f59e0b", to: "#7c2d12", accent: "#fcd34d" },
+  segaMD: { label: "MEGA DRIVE", glyph: "🌀", from: "#3b82f6", to: "#1e1b4b", accent: "#93c5fd" },
 };
 const DEFAULT_CORE_STYLE = { label: "?", glyph: "🕹️", from: "#64748b", to: "#1e293b", accent: "#cbd5e1" };
 
@@ -82,27 +83,21 @@ app.get("/", (req, res) => {
     })
     .join("\n");
 
-  const cards = entries
+  const carouselItems = entries
     .map(([keyId, cfg]) => {
       const style = CORE_STYLE[cfg.core] || DEFAULT_CORE_STYLE;
       const genre = cfg.genre || "";
-      return `
-      <a class="card" href="/play/${encodeURIComponent(keyId)}" data-core="${escapeHtml(cfg.core)}" data-title="${escapeHtml(cfg.title.toLowerCase())}" data-genre="${escapeHtml(genre.toLowerCase())}" style="--accent:${style.accent};--cover-from:${style.from};--cover-to:${style.to}">
-        <div class="card-cover" aria-hidden="true">
-          <span class="card-cover-glyph">${style.glyph}</span>
-        </div>
-        <div class="card-body">
-          <div class="card-tags">
-            <span class="card-console-tag">${escapeHtml(style.label)}</span>
-            ${genre ? `<span class="card-genre-tag">${escapeHtml(genre)}</span>` : ""}
-          </div>
-          <span class="card-title">${escapeHtml(cfg.title)}</span>
-          <span class="card-cta">Jogar agora
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
-          </span>
-        </div>
-      </a>
-    `;
+      return `<button type="button" class="carousel-item"
+        data-href="/play/${encodeURIComponent(keyId)}"
+        data-core="${escapeHtml(cfg.core)}"
+        data-title="${escapeHtml(cfg.title.toLowerCase())}"
+        data-genre="${escapeHtml(genre.toLowerCase())}"
+        data-title-label="${escapeHtml(cfg.title)}"
+        data-genre-label="${escapeHtml(genre)}"
+        data-console-label="${escapeHtml(style.label)}"
+        style="--accent:${style.accent};--cover-from:${style.from};--cover-to:${style.to}"
+        aria-label="${escapeHtml(cfg.title)}"
+      ><span class="carousel-cover-glyph" aria-hidden="true">${style.glyph}</span></button>`;
     })
     .join("\n");
 
@@ -115,11 +110,9 @@ app.get("/", (req, res) => {
   <link rel="stylesheet" href="/css/style.css" />${PWA_HEAD}
 </head>
 <body class="index-body">
-  <main class="index-wrap">
-    <header class="hero">
-      <div class="hero-badge">🕹️</div>
-      <h1>Joga Retrô</h1>
-      <p class="hero-tagline">Escolhe um jogo e começa a jogar na hora — seu progresso fica salvo automaticamente.</p>
+  <main class="index-wrap index-wrap--carousel">
+    <header class="hero hero--compact">
+      <h1><span aria-hidden="true">🕹️</span> Joga Retrô</h1>
     </header>
 
     <div class="library-controls">
@@ -132,11 +125,33 @@ app.get("/", (req, res) => {
       </div>
     </div>
 
-    <div class="card-grid" id="card-grid">
-      ${cards}
+    <div class="carousel-wrap">
+      <button type="button" class="carousel-nav carousel-nav--prev" id="carousel-prev" aria-label="Jogo anterior">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
+      </button>
+      <div class="carousel" id="carousel" tabindex="0">
+        <div class="carousel-track" id="carousel-track">
+          ${carouselItems}
+        </div>
+      </div>
+      <button type="button" class="carousel-nav carousel-nav--next" id="carousel-next" aria-label="Próximo jogo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+      </button>
     </div>
 
     <p id="empty-state" class="empty-state" hidden>Nenhum jogo encontrado. Tenta outra busca ou filtro.</p>
+
+    <div class="now-playing" id="now-playing">
+      <div class="now-playing-tags">
+        <span class="card-console-tag" id="now-playing-console"></span>
+        <span class="card-genre-tag" id="now-playing-genre"></span>
+      </div>
+      <div class="now-playing-title" id="now-playing-title"></div>
+      <a class="play-btn" id="now-playing-link" href="#">
+        Jogar agora
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+      </a>
+    </div>
 
     <div id="ios-hint" class="ios-hint" hidden>
       <div class="ios-hint-icon">📲</div>
@@ -163,38 +178,164 @@ app.get("/", (req, res) => {
       }
     })();
 
-    // Busca + filtro por console, tudo client-side (a lista é pequena, não
-    // precisa de round-trip nenhum pro servidor pra isso ficar instantâneo).
+    // Carrossel 3D (tipo CoverFlow): arrasta/toca nas capas dos lados pra
+    // navegar, busca + filtro por console rebuild o subconjunto visível na
+    // hora, tudo client-side — a lista cabe fácil na memória, não precisa
+    // de round-trip nenhum pro servidor.
     (function () {
+      var carousel = document.getElementById("carousel");
+      var track = document.getElementById("carousel-track");
+      var itemsAll = Array.prototype.slice.call(track.querySelectorAll(".carousel-item"));
+      var prevBtn = document.getElementById("carousel-prev");
+      var nextBtn = document.getElementById("carousel-next");
       var searchInput = document.getElementById("search-input");
       var chips = document.querySelectorAll(".chip");
-      var cards = document.querySelectorAll("#card-grid .card");
       var emptyState = document.getElementById("empty-state");
+      var nowPlaying = document.getElementById("now-playing");
+      var npConsole = document.getElementById("now-playing-console");
+      var npGenre = document.getElementById("now-playing-genre");
+      var npTitle = document.getElementById("now-playing-title");
+      var npLink = document.getElementById("now-playing-link");
+
+      var visible = itemsAll.slice();
+      var activeIndex = 0;
       var activeFilter = "all";
 
-      function applyFilters() {
-        var query = searchInput.value.trim().toLowerCase();
-        var visibleCount = 0;
-        cards.forEach(function (card) {
-          var matchesCore = activeFilter === "all" || card.dataset.core === activeFilter;
-          var haystack = card.dataset.title + " " + card.dataset.genre;
-          var matchesQuery = query === "" || haystack.indexOf(query) !== -1;
-          var visible = matchesCore && matchesQuery;
-          card.hidden = !visible;
-          if (visible) visibleCount++;
+      function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+      function itemSize() { return carousel.clientWidth < 380 ? 116 : 152; }
+
+      function layout(dragPx) {
+        dragPx = dragPx || 0;
+        var size = itemSize();
+        var spacing = size * 0.62;
+        var dragSteps = dragPx / spacing;
+
+        itemsAll.forEach(function (item) {
+          item.style.opacity = "0";
+          item.style.pointerEvents = "none";
+          item.style.zIndex = "0";
         });
-        emptyState.hidden = visibleCount !== 0;
+
+        visible.forEach(function (item, i) {
+          var pos = (i - activeIndex) - dragSteps;
+          var absPos = Math.abs(pos);
+          if (absPos > 3.2) return;
+          var translateX = pos * spacing;
+          var rotateY = clamp(pos * -38, -68, 68);
+          var scale = 1 - Math.min(absPos, 1) * 0.3;
+          var z = -Math.min(absPos, 3) * 90;
+          var opacity = Math.max(0, 1 - absPos * 0.32);
+          item.style.width = size + "px";
+          item.style.height = size + "px";
+          item.style.marginLeft = (-size / 2) + "px";
+          item.style.marginTop = (-size / 2) + "px";
+          item.style.fontSize = Math.round(size * 0.42) + "px";
+          item.style.transform = "translateX(" + translateX + "px) translateZ(" + z + "px) rotateY(" + rotateY + "deg) scale(" + scale + ")";
+          item.style.opacity = String(opacity);
+          item.style.pointerEvents = "auto";
+          item.style.zIndex = String(200 - Math.round(absPos * 10));
+        });
       }
 
-      searchInput.addEventListener("input", applyFilters);
+      function updateNowPlaying() {
+        if (!visible.length) {
+          nowPlaying.hidden = true;
+          return;
+        }
+        nowPlaying.hidden = false;
+        var item = visible[activeIndex];
+        npConsole.textContent = item.dataset.consoleLabel;
+        npConsole.style.color = item.style.getPropertyValue("--accent") || "";
+        npGenre.textContent = item.dataset.genreLabel;
+        npTitle.textContent = item.dataset.titleLabel;
+        npLink.href = item.dataset.href;
+      }
+
+      function goTo(index) {
+        if (!visible.length) return;
+        activeIndex = clamp(index, 0, visible.length - 1);
+        layout();
+        updateNowPlaying();
+      }
+
+      function computeVisible() {
+        var query = searchInput.value.trim().toLowerCase();
+        visible = itemsAll.filter(function (item) {
+          var matchesCore = activeFilter === "all" || item.dataset.core === activeFilter;
+          var haystack = item.dataset.title + " " + item.dataset.genre;
+          var matchesQuery = query === "" || haystack.indexOf(query) !== -1;
+          return matchesCore && matchesQuery;
+        });
+        activeIndex = 0;
+        emptyState.hidden = visible.length !== 0;
+        layout();
+        updateNowPlaying();
+      }
+
+      prevBtn.addEventListener("click", function () { goTo(activeIndex - 1); });
+      nextBtn.addEventListener("click", function () { goTo(activeIndex + 1); });
+
+      itemsAll.forEach(function (item) {
+        item.addEventListener("click", function () {
+          var idx = visible.indexOf(item);
+          if (idx === -1) return;
+          if (idx === activeIndex) {
+            window.location.href = item.dataset.href;
+          } else {
+            goTo(idx);
+          }
+        });
+      });
+
+      // Arrasta com o dedo (ou mouse) pra folhear as capas.
+      var dragging = false;
+      var startX = 0;
+      var currentDrag = 0;
+
+      carousel.addEventListener("pointerdown", function (e) {
+        dragging = true;
+        startX = e.clientX;
+        currentDrag = 0;
+        carousel.setPointerCapture(e.pointerId);
+        itemsAll.forEach(function (item) { item.style.transition = "none"; });
+      });
+      carousel.addEventListener("pointermove", function (e) {
+        if (!dragging) return;
+        currentDrag = e.clientX - startX;
+        layout(currentDrag);
+      });
+      function endDrag() {
+        if (!dragging) return;
+        dragging = false;
+        itemsAll.forEach(function (item) { item.style.transition = ""; });
+        var spacing = itemSize() * 0.62;
+        var moved = Math.round(-currentDrag / spacing);
+        goTo(activeIndex + moved);
+      }
+      carousel.addEventListener("pointerup", endDrag);
+      carousel.addEventListener("pointercancel", endDrag);
+      carousel.addEventListener("pointerleave", function () { if (dragging) endDrag(); });
+
+      carousel.addEventListener("keydown", function (e) {
+        if (e.key === "ArrowLeft") { e.preventDefault(); goTo(activeIndex - 1); }
+        if (e.key === "ArrowRight") { e.preventDefault(); goTo(activeIndex + 1); }
+        if (e.key === "Enter" && visible[activeIndex]) { window.location.href = visible[activeIndex].dataset.href; }
+      });
+
+      searchInput.addEventListener("input", computeVisible);
       chips.forEach(function (chip) {
         chip.addEventListener("click", function () {
           chips.forEach(function (c) { c.classList.remove("chip--active"); });
           chip.classList.add("chip--active");
           activeFilter = chip.dataset.filter;
-          applyFilters();
+          computeVisible();
         });
       });
+
+      window.addEventListener("resize", function () { layout(); });
+
+      computeVisible();
     })();
   </script>
 </body>
