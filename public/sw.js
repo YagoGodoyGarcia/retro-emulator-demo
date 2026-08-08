@@ -8,12 +8,15 @@
 // pro navegador — resposta opaca de terceiro em cache dá mais dor de cabeça
 // (tamanho, revalidação) do que ganho, e o cache HTTP normal já cobre isso.
 
-const VERSION = "retro-v3";
+const VERSION = "myde-v4";
 const SHELL_CACHE = `${VERSION}-shell`;
 const ASSET_CACHE = `${VERSION}-assets`;
 
+// "/" fica de fora de propósito: com o acesso restrito ligado, um visitante
+// sem convite receberia a tela de "acesso por convite" e ela é que ficaria
+// gravada como a home. O handler de navegação já guarda a home de verdade
+// depois de uma visita bem-sucedida.
 const SHELL = [
-  "/",
   "/css/style.css",
   "/js/library.js",
   "/js/player.js",
@@ -61,6 +64,17 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
+
+  // Nada de admin, resgate de link ou API entra em cache: são respostas que
+  // dependem de sessão e de estado do servidor. Servir uma cópia velha delas
+  // furaria justamente o controle de acesso.
+  if (
+    url.pathname.startsWith("/admin") ||
+    url.pathname.startsWith("/t/") ||
+    url.pathname.startsWith("/api/")
+  ) {
+    return;
+  }
 
   // Assets imutáveis: serve do cache na hora, busca na rede só se faltar.
   if (isCacheableAsset(url)) {

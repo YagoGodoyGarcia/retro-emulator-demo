@@ -4,7 +4,7 @@
   box-sizing: border-box;
 }
 
-/* Vários elementos aqui usam display flex/grid, que ganha do [hidden] nativo
+/* Vários elementos usam display flex/grid, que ganha do [hidden] nativo
    (author style vence a folha do navegador na mesma especificidade). Sem
    isso, esconder por JS não some com o elemento na tela. */
 [hidden] {
@@ -12,15 +12,16 @@
 }
 
 :root {
-  --bg: #08080d;
-  --surface: #14141c;
-  --border: #24242f;
-  --text: #f2f2f7;
-  --muted: #a3a3b8;
-  --dim: #6f6f85;
+  --bg: #05050a;
+  --surface: rgba(255, 255, 255, 0.06);
+  --surface-solid: #12121a;
+  --border: rgba(255, 255, 255, 0.1);
+  --text: #ffffff;
+  --muted: rgba(255, 255, 255, 0.62);
+  --dim: rgba(255, 255, 255, 0.38);
   --brand: #8b5cf6;
   --brand-deep: #6d28d9;
-  /* Sobrescrito em tempo real pelo JS com a cor extraída da capa ativa. */
+  /* Trocado em tempo real pelo JS com a cor extraída da capa ativa. */
   --live-accent: #c4b5fd;
 }
 
@@ -34,8 +35,13 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
 /* =====================================================================
-   VITRINE — ocupa exatamente uma tela, nunca rola
+   VITRINE — uma tela só, cara de console
    ===================================================================== */
 
 .index-body {
@@ -45,109 +51,153 @@ body {
   position: relative;
   background: var(--bg);
   overscroll-behavior: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
-/* Duas camadas empilhadas: o JS cruza a opacidade entre elas pra trocar o
-   fundo suavemente conforme a cor da capa ativa. Fazer crossfade assim é
-   confiável em todo navegador; animar um gradiente direto não é. */
-.theme-backdrop {
+/* A arte do jogo ativo, borrada e sangrando até as bordas: é o que faz a
+   tela inteira "virar" o jogo, como em painel de console. Duas camadas
+   empilhadas fazem crossfade a cada troca. */
+.art-backdrop {
   position: fixed;
   inset: 0;
   z-index: 0;
+  background-size: cover;
+  background-position: center;
+  filter: blur(46px) saturate(150%);
   opacity: 0;
-  transition: opacity 0.85s ease;
+  /* Escala por transform, não por inset negativo: transform não entra no
+     cálculo de overflow, então a borda esfumada do blur passa da tela sem
+     criar barra de rolagem. */
+  transform: scale(1.22);
+  transition: opacity 0.75s ease;
   pointer-events: none;
+}
+
+/* Escurece o fundo pro texto ficar legível e dá o vinheteado de TV. */
+.screen-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 85% at 50% 40%, transparent 20%, rgba(5, 5, 10, 0.72) 78%),
+    linear-gradient(180deg, rgba(5, 5, 10, 0.86) 0%, rgba(5, 5, 10, 0.36) 26%, rgba(5, 5, 10, 0.5) 58%, rgba(5, 5, 10, 0.94) 100%);
+}
+
+/* Scanlines bem sutis — o toque de "isso é um console", sem virar poluição. */
+.screen-veil::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(255, 255, 255, 0.022) 0 1px,
+    transparent 1px 3px
+  );
+  mix-blend-mode: overlay;
 }
 
 .app-shell {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   height: 100%;
-  max-width: 620px;
+  max-width: 820px;
   margin: 0 auto;
-  padding: max(8px, env(safe-area-inset-top)) 16px max(10px, env(safe-area-inset-bottom));
+  padding: max(6px, env(safe-area-inset-top)) 14px max(8px, env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
-  gap: 12px;
 }
 
-/* ---------- topo enxuto ---------- */
+/* ---------- barra mínima ---------- */
 
 .topbar {
   flex: 0 0 auto;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding-top: 4px;
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 1.02rem;
-  font-weight: 800;
-  letter-spacing: -0.01em;
-  margin: 0;
-}
-
-.brand-mark {
-  font-size: 1.15rem;
-  line-height: 1;
-}
-
-.brand-text {
-  background: linear-gradient(120deg, #ffffff 10%, var(--live-accent) 95%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  transition: background 0.6s ease;
-}
-
-.install-btn {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
-  font-size: 0.76rem;
-  font-weight: 700;
-  font-family: inherit;
-  padding: 7px 13px;
-  border-radius: 999px;
-  cursor: pointer;
-}
-
-.install-btn svg {
-  width: 14px;
-  height: 14px;
-}
-
-.install-btn.is-ready {
-  border-color: var(--live-accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--live-accent) 14%, transparent);
-}
-
-/* ---------- busca + filtros ---------- */
-
-.library-controls {
-  flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-}
-
-.search-row {
-  display: flex;
   gap: 8px;
 }
 
+.brand {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  color: var(--text);
+  text-shadow: 0 0 18px color-mix(in srgb, var(--live-accent) 60%, transparent);
+  transition: text-shadow 0.6s ease;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.icon-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(12px);
+  transition: transform 0.14s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.icon-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.icon-btn:active {
+  transform: scale(0.92);
+}
+
+.icon-btn.is-on {
+  border-color: var(--live-accent);
+  color: var(--live-accent);
+}
+
+.icon-btn.is-thinking {
+  animation: ai-pulse 0.8s ease-in-out infinite;
+}
+
+.icon-btn.is-thinking svg {
+  animation: ai-spin 1.1s linear infinite;
+}
+
+@keyframes ai-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--live-accent) 50%, transparent); }
+  50% { box-shadow: 0 0 0 10px transparent; }
+}
+
+@keyframes ai-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ---------- busca: fica fora do caminho até ser chamada ---------- */
+
+.search-panel {
+  flex: 0 0 auto;
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  transition: max-height 0.3s ease, opacity 0.25s ease, margin 0.3s ease;
+}
+
+.search-panel.is-open {
+  max-height: 120px;
+  opacity: 1;
+  margin-bottom: 8px;
+}
+
 .search-box {
-  flex: 1;
-  min-width: 0;
   display: flex;
   align-items: center;
   gap: 9px;
@@ -156,7 +206,8 @@ body {
   border-radius: 13px;
   padding: 10px 13px;
   color: var(--dim);
-  transition: border-color 0.2s ease;
+  backdrop-filter: blur(12px);
+  margin-top: 6px;
 }
 
 .search-box:focus-within {
@@ -184,53 +235,12 @@ body {
   color: var(--dim);
 }
 
-/* Botão de sugestão — o "cérebro" do app. */
-.ai-pick {
-  flex: 0 0 auto;
-  width: 44px;
-  border: 1px solid color-mix(in srgb, var(--live-accent) 45%, var(--border));
-  background: linear-gradient(150deg, color-mix(in srgb, var(--live-accent) 22%, var(--surface)), var(--surface));
-  color: var(--live-accent);
-  border-radius: 13px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.25s ease;
-}
-
-.ai-pick svg {
-  width: 19px;
-  height: 19px;
-}
-
-.ai-pick:active {
-  transform: scale(0.94);
-}
-
-.ai-pick.is-thinking {
-  animation: ai-pulse 0.75s ease-in-out infinite;
-}
-
-.ai-pick.is-thinking svg {
-  animation: ai-spin 1.1s linear infinite;
-}
-
-@keyframes ai-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--live-accent) 45%, transparent); }
-  50% { box-shadow: 0 0 0 9px transparent; }
-}
-
-@keyframes ai-spin {
-  to { transform: rotate(360deg); }
-}
-
 .chip-row {
   display: flex;
-  gap: 7px;
+  gap: 6px;
   overflow-x: auto;
   scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
+  margin-top: 8px;
   padding-bottom: 1px;
 }
 
@@ -243,220 +253,224 @@ body {
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   font-weight: 700;
-  font-family: inherit;
-  padding: 6px 13px;
+  letter-spacing: 0.04em;
+  padding: 6px 12px;
   border-radius: 999px;
-  cursor: pointer;
+  backdrop-filter: blur(12px);
   transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
 }
 
 .chip--active {
-  background: color-mix(in srgb, var(--live-accent) 20%, var(--surface));
+  background: color-mix(in srgb, var(--live-accent) 22%, transparent);
   border-color: var(--live-accent);
   color: #fff;
 }
 
-/* ---------- carrossel: come todo o espaço que sobra ---------- */
+/* ---------- o palco: a arte manda ---------- */
 
-.carousel-wrap {
+.stage {
   flex: 1 1 auto;
   min-height: 0;
   position: relative;
   display: flex;
   align-items: center;
-}
-
-.carousel {
-  flex: 1;
-  min-width: 0;
-  height: 100%;
-  position: relative;
-  perspective: 1100px;
+  justify-content: center;
+  /* As capas vizinhas ficam propositalmente fora da área visível; sem clipar
+     aqui elas viram largura de página e a tela ganha rolagem lateral. */
   overflow: hidden;
   touch-action: pan-y;
   cursor: grab;
   outline: none;
 }
 
-.carousel:active {
+.stage:active {
   cursor: grabbing;
 }
 
-.carousel-track {
+.rail {
   position: absolute;
   inset: 0;
   transform-style: preserve-3d;
+  perspective: 1400px;
 }
 
-.carousel-item {
+/* Retângulo grande, no formato da arte do jogo — não é ícone, é a tela do
+   jogo. Os vizinhos aparecem menores nas laterais. */
+.tile {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 152px;
-  height: 152px;
-  margin: -76px 0 0 -76px;
   border: none;
-  border-radius: 22px;
-  background: linear-gradient(135deg, var(--cover-from), var(--cover-to));
-  overflow: hidden;
   padding: 0;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #000;
   opacity: 0;
-  cursor: pointer;
-  transition: transform 0.42s cubic-bezier(0.22, 0.68, 0, 1.01), opacity 0.42s ease,
-    box-shadow 0.42s ease;
+  transition: transform 0.44s cubic-bezier(0.2, 0.7, 0.15, 1), opacity 0.44s ease,
+    box-shadow 0.44s ease;
   will-change: transform, opacity;
-  box-shadow: 0 22px 40px -18px rgba(0, 0, 0, 0.65);
+  box-shadow: 0 30px 60px -22px rgba(0, 0, 0, 0.9);
 }
 
-.carousel-item.is-active {
-  box-shadow: 0 0 0 3px var(--accent), 0 26px 46px -14px var(--accent);
+.tile.is-active {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--live-accent) 85%, transparent),
+    0 0 44px -4px color-mix(in srgb, var(--live-accent) 55%, transparent),
+    0 34px 66px -20px rgba(0, 0, 0, 0.95);
 }
 
-.carousel-cover-img {
+/* O card é um retângulo alto (pra encher a tela do celular), mas a arte é
+   larga. Em vez de cortar a arte, a própria arte borrada e ampliada preenche
+   o fundo do card e a versão nítida fica inteira por cima — mesmo truque de
+   app de música/vídeo, enche o quadro sem perder nada da imagem. */
+.tile::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--art);
+  background-size: cover;
+  background-position: center;
+  filter: blur(22px) saturate(150%) brightness(0.5);
+  transform: scale(1.35);
+}
+
+.tile-img {
+  position: relative;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   display: block;
   pointer-events: none;
-  /* screenshot de jogo antigo é pixel art pequena — sem isso o navegador
-     borra tudo ao ampliar */
+  /* pixel art pequena esticada: sem isso o navegador borra tudo */
   image-rendering: pixelated;
 }
 
-/* Flutuando sobre as bordas do carrossel em vez de ocupar espaço na linha —
-   assim a capa central usa toda a largura disponível. */
-.carousel-nav {
+/* Escurece quem não está em foco, pra atenção ir pro centro. */
+.tile:not(.is-active) {
+  filter: brightness(0.5) saturate(0.8);
+}
+
+.stage-nav {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   border: 1px solid var(--border);
-  background: color-mix(in srgb, var(--surface) 70%, transparent);
-  color: #c7c7d6;
+  background: rgba(10, 10, 16, 0.5);
+  color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
   z-index: 10;
-  backdrop-filter: blur(6px);
+  backdrop-filter: blur(10px);
+  opacity: 0.75;
 }
 
-#carousel-prev {
-  left: 0;
+.stage-nav svg {
+  width: 18px;
+  height: 18px;
 }
 
-#carousel-next {
-  right: 0;
+.stage-nav:active {
+  transform: translateY(-50%) scale(0.9);
+  opacity: 1;
 }
 
-.carousel-nav svg {
-  width: 17px;
-  height: 17px;
-}
+#nav-prev { left: 2px; }
+#nav-next { right: 2px; }
 
-.carousel-nav:active {
-  background: var(--surface);
-  transform: translateY(-50%) scale(0.93);
-}
+/* ---------- rodapé: só o essencial ---------- */
 
-/* ---------- painel do jogo em foco ---------- */
-
-.now-playing {
+.hud {
   flex: 0 0 auto;
   text-align: center;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 5px;
-  padding-bottom: 2px;
+  gap: 4px;
+  padding: 10px 0 4px;
 }
 
-.now-playing-tags {
+.hud-meta {
   display: flex;
   align-items: center;
-  gap: 8px;
-}
-
-.card-console-tag {
-  font-size: 0.63rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  gap: 7px;
+  font-size: 0.66rem;
   font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   color: var(--live-accent);
   transition: color 0.5s ease;
 }
 
-.card-genre-tag {
-  font-size: 0.68rem;
+.hud-meta span:last-child {
   color: var(--dim);
-  padding-left: 8px;
-  border-left: 1px solid #33333f;
+  letter-spacing: 0.06em;
+  font-weight: 600;
 }
 
-.now-playing-title {
-  font-size: 1.28rem;
-  font-weight: 800;
-  letter-spacing: -0.015em;
-  line-height: 1.2;
+.hud-title {
+  font-size: clamp(1.35rem, 6.2vw, 2rem);
+  font-weight: 900;
+  letter-spacing: -0.025em;
+  line-height: 1.08;
+  text-shadow: 0 3px 24px rgba(0, 0, 0, 0.85);
 }
 
-.now-playing-title.is-in {
-  animation: rise-in 0.35s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+.hud-title.is-in {
+  animation: rise-in 0.36s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
 
 @keyframes rise-in {
-  from { opacity: 0; transform: translateY(7px); }
+  from { opacity: 0; transform: translateY(9px); }
   to { opacity: 1; transform: none; }
 }
 
-.now-playing-reason {
-  font-size: 0.74rem;
+.hud-note {
+  font-size: 0.72rem;
   color: var(--live-accent);
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  background: color-mix(in srgb, var(--live-accent) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--live-accent) 30%, transparent);
-  padding: 4px 11px;
+  background: color-mix(in srgb, var(--live-accent) 13%, transparent);
+  border: 1px solid color-mix(in srgb, var(--live-accent) 32%, transparent);
+  padding: 3px 11px;
   border-radius: 999px;
 }
 
-.now-playing-reason.is-in {
+.hud-note.is-in {
   animation: rise-in 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
 
-.carousel-counter {
-  font-size: 0.66rem;
-  color: var(--dim);
-  font-variant-numeric: tabular-nums;
-}
-
-.play-btn {
-  margin-top: 6px;
+.launch-btn {
+  margin-top: 8px;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  gap: 9px;
+  min-width: 210px;
   background: linear-gradient(135deg, var(--brand), var(--brand-deep));
   color: #fff;
-  font-weight: 800;
-  font-size: 0.96rem;
-  padding: 13px 32px;
-  border-radius: 999px;
+  font-weight: 900;
+  font-size: 0.95rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 15px 34px;
+  border-radius: 14px;
   text-decoration: none;
-  box-shadow: 0 16px 32px -14px rgba(139, 92, 246, 0.8);
+  box-shadow: 0 18px 38px -14px rgba(139, 92, 246, 0.9);
   transition: transform 0.14s ease;
 }
 
-.play-btn svg {
-  width: 16px;
-  height: 16px;
+.launch-btn svg {
+  width: 15px;
+  height: 15px;
 }
 
-.play-btn:active {
+.launch-btn:active {
   transform: scale(0.97);
 }
 
@@ -472,11 +486,7 @@ body {
   padding: 0 20px;
 }
 
-.empty-state[hidden] {
-  display: none;
-}
-
-/* ---------- folha de instruções do iOS (só ao tocar em Instalar) ---------- */
+/* ---------- folha (instruções de instalar no iOS) ---------- */
 
 .sheet {
   position: fixed;
@@ -485,27 +495,23 @@ body {
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  background: rgba(4, 4, 8, 0.6);
-  backdrop-filter: blur(3px);
+  background: rgba(3, 3, 7, 0.72);
+  backdrop-filter: blur(6px);
   padding: 16px;
-}
-
-.sheet[hidden] {
-  display: none;
 }
 
 .sheet-card {
   width: 100%;
   max-width: 420px;
-  background: var(--surface);
+  background: var(--surface-solid);
   border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: 20px;
+  border-radius: 22px;
+  padding: 22px;
   animation: sheet-up 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
 @keyframes sheet-up {
-  from { opacity: 0; transform: translateY(24px); }
+  from { opacity: 0; transform: translateY(26px); }
   to { opacity: 1; transform: none; }
 }
 
@@ -515,7 +521,7 @@ body {
 }
 
 .sheet-card p {
-  margin: 0 0 14px;
+  margin: 0 0 16px;
   font-size: 0.86rem;
   line-height: 1.55;
   color: var(--muted);
@@ -531,11 +537,9 @@ body {
   border-radius: 999px;
   background: linear-gradient(135deg, var(--brand), var(--brand-deep));
   color: #fff;
-  font-family: inherit;
   font-size: 0.9rem;
-  font-weight: 700;
-  padding: 12px;
-  cursor: pointer;
+  font-weight: 800;
+  padding: 13px;
 }
 
 .inline-icon {
@@ -545,35 +549,71 @@ body {
   stroke: var(--live-accent);
 }
 
-/* ---------- 404 ---------- */
+/* =====================================================================
+   TELAS DE SISTEMA (acesso negado, 404) — mesma cara de console
+   ===================================================================== */
 
-.simple-wrap {
-  position: relative;
-  z-index: 1;
-  max-width: 480px;
-  margin: 0 auto;
-  padding: 56px 20px;
+.system-body {
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(139, 92, 246, 0.16), transparent 62%),
+    var(--bg);
+  text-align: center;
 }
 
-.simple-wrap h1 {
-  font-size: 1.4rem;
+.system-card {
+  max-width: 400px;
 }
 
-.subtitle {
+.system-mark {
+  font-size: 0.85rem;
+  font-weight: 900;
+  letter-spacing: 0.3em;
+  color: var(--live-accent);
+  margin-bottom: 26px;
+}
+
+.system-icon {
+  font-size: 2.4rem;
+  margin-bottom: 14px;
+}
+
+.system-card h1 {
+  font-size: 1.35rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  margin: 0 0 10px;
+}
+
+.system-card p {
   color: var(--muted);
-  font-size: 0.9rem;
-  line-height: 1.4;
-  margin-bottom: 20px;
+  font-size: 0.92rem;
+  line-height: 1.6;
+  margin: 0 0 8px;
 }
 
-.known-list {
-  padding-left: 20px;
+.system-card code {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 0.85em;
+}
+
+.system-list {
+  text-align: left;
   color: var(--muted);
   line-height: 1.9;
+  font-size: 0.9rem;
 }
 
-.known-list a,
-.simple-wrap a {
+.system-list a {
   color: var(--live-accent);
 }
 
@@ -588,8 +628,8 @@ body {
   overflow: hidden;
   position: relative;
   background: #000;
-  /* Evita pull-to-refresh / voltar por swipe / menu de copiar quando o dedo
-     está em cima dos controles virtuais. */
+  /* Evita pull-to-refresh / voltar por swipe / menu de copiar com o dedo em
+     cima dos controles virtuais. */
   touch-action: none;
   overscroll-behavior: none;
   -webkit-user-select: none;
@@ -648,9 +688,9 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(circle at 50% 42%, rgba(139, 92, 246, 0.28), transparent 62%),
-    rgba(6, 6, 10, 0.94);
-  backdrop-filter: blur(2px);
+  background: radial-gradient(circle at 50% 42%, rgba(139, 92, 246, 0.26), transparent 62%),
+    rgba(4, 4, 8, 0.95);
+  backdrop-filter: blur(3px);
   cursor: pointer;
   transition: opacity 0.32s ease;
 }
@@ -670,34 +710,32 @@ body {
 }
 
 .play-gate-cover {
-  width: 108px;
-  height: 108px;
-  border-radius: 24px;
+  width: min(70vw, 260px);
+  aspect-ratio: 4 / 3;
   object-fit: cover;
+  border-radius: 16px;
   image-rendering: pixelated;
-  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.55), 0 24px 44px -16px rgba(139, 92, 246, 0.7);
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.6), 0 26px 48px -16px rgba(139, 92, 246, 0.7);
 }
 
 .play-gate-btn {
-  width: 72px;
-  height: 72px;
+  width: 70px;
+  height: 70px;
   border-radius: 50%;
   border: none;
   background: linear-gradient(135deg, var(--brand), var(--brand-deep));
   color: #fff;
-  font-size: 1.55rem;
-  font-family: inherit;
+  font-size: 1.5rem;
   display: flex;
   align-items: center;
   justify-content: center;
   padding-left: 5px;
-  cursor: pointer;
-  box-shadow: 0 12px 30px -10px rgba(139, 92, 246, 0.75);
+  box-shadow: 0 12px 30px -10px rgba(139, 92, 246, 0.8);
 }
 
 .play-gate-btn.is-loading {
   padding-left: 0;
-  border: 3px solid rgba(255, 255, 255, 0.28);
+  border: 3px solid rgba(255, 255, 255, 0.26);
   border-top-color: #fff;
   background: transparent;
   box-shadow: none;
@@ -709,8 +747,8 @@ body {
 }
 
 .play-gate-title {
-  font-size: 1.08rem;
-  font-weight: 700;
+  font-size: 1.1rem;
+  font-weight: 800;
 }
 
 .play-gate-hint {
@@ -719,15 +757,11 @@ body {
 }
 
 .play-gate-progress {
-  width: 160px;
+  width: 170px;
   height: 3px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.14);
   overflow: hidden;
-}
-
-.play-gate-progress[hidden] {
-  display: none;
 }
 
 .play-gate-progress::after {
@@ -745,9 +779,9 @@ body {
   to { transform: translateX(320%); }
 }
 
-/* Aviso de girar o celular. Sem giro "fake" por CSS aqui: o EmulatorJS
-   posiciona os controles virtuais pelo tamanho real da janela, e girar só na
-   aparência espalha os botões pro lugar errado. */
+/* Sem giro "fake" por CSS: o EmulatorJS posiciona os controles virtuais pelo
+   tamanho real da janela, e girar só na aparência joga os botões pro lugar
+   errado. Isso aqui é só o lembrete. */
 .rotate-hint {
   position: absolute;
   left: 50%;
@@ -764,15 +798,291 @@ body {
 }
 
 @media screen and (orientation: landscape) {
-  .rotate-hint {
-    display: none;
-  }
+  .rotate-hint { display: none; }
 }
 
 /* O botão real do EmulatorJS fica escondido — o play-gate repassa o clique
    pra ele, então ele nunca precisa aparecer. */
 .ejs_start_button {
   display: none !important;
+}
+
+/* =====================================================================
+   ADMIN
+   ===================================================================== */
+
+.admin-body {
+  min-height: 100vh;
+  margin: 0;
+  padding: 28px 18px 60px;
+  background:
+    radial-gradient(100% 60% at 50% 0%, rgba(139, 92, 246, 0.13), transparent 60%),
+    var(--bg);
+}
+
+.admin-wrap {
+  max-width: 780px;
+  margin: 0 auto;
+}
+
+.admin-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+.admin-head h1 {
+  font-size: 1.15rem;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  margin: 0;
+}
+
+.admin-head a {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.banner {
+  border-radius: 14px;
+  padding: 13px 16px;
+  font-size: 0.85rem;
+  line-height: 1.55;
+  margin-bottom: 18px;
+  border: 1px solid;
+}
+
+.banner--warn {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.42);
+  color: #fcd9a0;
+}
+
+.banner--info {
+  background: rgba(139, 92, 246, 0.1);
+  border-color: rgba(139, 92, 246, 0.4);
+  color: #d9cdfb;
+}
+
+.banner code {
+  background: rgba(0, 0, 0, 0.35);
+  padding: 1px 6px;
+  border-radius: 5px;
+}
+
+.panel {
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 18px;
+  margin-bottom: 16px;
+}
+
+.panel h2 {
+  margin: 0 0 14px;
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.field-row {
+  display: flex;
+  gap: 9px;
+}
+
+.field {
+  flex: 1;
+  min-width: 0;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  padding: 11px 13px;
+  color: var(--text);
+  font-size: 0.92rem;
+  font-family: inherit;
+  outline: none;
+}
+
+.field:focus {
+  border-color: var(--brand);
+}
+
+.field::placeholder {
+  color: var(--dim);
+}
+
+.btn {
+  border: none;
+  border-radius: 11px;
+  background: linear-gradient(135deg, var(--brand), var(--brand-deep));
+  color: #fff;
+  font-size: 0.88rem;
+  font-weight: 800;
+  padding: 11px 20px;
+  white-space: nowrap;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+}
+
+/* Vale pra <button> e pra <a> (o "Baixar QR" é um link com download) — sem
+   isso o <a> herda o azul sublinhado padrão do navegador. */
+.btn--ghost {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--border);
+  color: var(--text);
+  text-decoration: none;
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 0.76rem;
+  padding: 7px 13px;
+  border-radius: 9px;
+}
+
+.btn--danger {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(239, 68, 68, 0.14);
+  border: 1px solid rgba(239, 68, 68, 0.42);
+  color: #fca5a5;
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 0.76rem;
+  padding: 7px 13px;
+  border-radius: 9px;
+}
+
+.token-list {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+
+.token {
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 15px;
+  display: flex;
+  gap: 15px;
+  align-items: flex-start;
+}
+
+.token--revoked {
+  opacity: 0.5;
+}
+
+.token-qr {
+  flex: 0 0 auto;
+  width: 92px;
+  height: 92px;
+  border-radius: 10px;
+  background: #fff;
+  padding: 5px;
+}
+
+.token-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.token-label {
+  font-weight: 800;
+  font-size: 0.95rem;
+  margin-bottom: 3px;
+}
+
+.token-url {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.74rem;
+  color: var(--muted);
+  word-break: break-all;
+  margin-bottom: 8px;
+}
+
+.token-status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  font-size: 0.72rem;
+  margin-bottom: 10px;
+}
+
+.pill {
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-weight: 700;
+  border: 1px solid;
+}
+
+.pill--free {
+  color: #86efac;
+  border-color: rgba(134, 239, 172, 0.4);
+  background: rgba(134, 239, 172, 0.1);
+}
+
+.pill--bound {
+  color: #93c5fd;
+  border-color: rgba(147, 197, 253, 0.4);
+  background: rgba(147, 197, 253, 0.1);
+}
+
+.pill--online {
+  color: #fcd34d;
+  border-color: rgba(252, 211, 77, 0.4);
+  background: rgba(252, 211, 77, 0.1);
+}
+
+.pill--dead {
+  color: #fca5a5;
+  border-color: rgba(252, 165, 165, 0.4);
+  background: rgba(252, 165, 165, 0.1);
+}
+
+.token-actions {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.admin-empty {
+  color: var(--dim);
+  font-size: 0.9rem;
+  text-align: center;
+  padding: 26px 0;
+}
+
+.login-wrap {
+  max-width: 340px;
+  margin: 18vh auto 0;
+  text-align: center;
+}
+
+.login-wrap h1 {
+  font-size: 1rem;
+  font-weight: 900;
+  letter-spacing: 0.24em;
+  margin-bottom: 22px;
+}
+
+.login-wrap .field {
+  margin-bottom: 10px;
+  text-align: center;
+}
+
+.login-wrap .btn {
+  width: 100%;
+}
+
+.login-error {
+  color: #fca5a5;
+  font-size: 0.84rem;
+  margin-top: 12px;
 }
 
 @media (prefers-reduced-motion: reduce) {

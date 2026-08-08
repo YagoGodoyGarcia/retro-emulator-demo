@@ -1,9 +1,8 @@
-# Joga Retrô
+# MYDE
 
-Vitrine de jogos retro que rodam 100% no navegador (EmulatorJS), instalável
-como app. Cada jogo tem uma URL própria (`/play/:id`) — é essa URL que o
-chaveiro NFC vai abrir na versão final; por enquanto o `id` é só uma chave
-no catálogo e nada disso aparece pro usuário.
+Console retro que roda 100% no navegador: uma vitrine em tela cheia, jogos
+que abrem em um toque, e acesso por link exclusivo (feito pra QR code).
+Sem framework — Express no servidor, DOM e CSS no cliente.
 
 ## Deploy na Vercel
 
@@ -24,34 +23,84 @@ Abre em `http://localhost:3000`.
 
 ## Rotas
 
-- `GET /` — a vitrine: carrossel 3D, busca e sugestão numa tela só (ver abaixo).
-- `GET /play/:id` — o player em tela cheia, já configurado pro jogo daquele `id`. `id` desconhecido cai num 404 listando os válidos.
+- `GET /` — a vitrine.
+- `GET /play/:id` — o player em tela cheia. `id` desconhecido cai num 404 listando os válidos.
+- `GET /t/:token` — resgate do link de convite; vincula ao aparelho e manda pra vitrine.
+- `GET /admin` — painel pra gerar/gerenciar os links (pede senha).
 - `GET /api/keychains` — o catálogo em JSON, útil pra debug.
 
-Arquivos que importam: `server.js` (rotas + HTML), `public/js/library.js`
-(vitrine), `public/js/player.js` (player), `public/sw.js` (cache/PWA),
-`config/keychains.json` (catálogo).
+Arquivos que importam: `server.js` (rotas + HTML), `lib/access.js` (cookies,
+vínculo, sessão), `lib/store.js` (onde os links ficam), `public/js/library.js`
+(vitrine), `public/js/player.js` (player), `public/js/admin.js` (painel),
+`public/sw.js` (cache/PWA), `config/keychains.json` (catálogo).
+
+## Acesso por link exclusivo
+
+Pensado pra QR code: cada link vale pra **um aparelho só**, então copiar a URL
+e repassar não dá acesso a mais ninguém.
+
+**Como funciona.** O link sozinho não abre nada — quem abre é o *cookie* que
+o servidor entrega pro primeiro aparelho que usar o link:
+
+1. Você gera um link no `/admin` → `https://seu-app/t/AbC123xyz`
+2. O primeiro aparelho que abrir esse link fica com ele: o servidor grava o
+   vínculo e devolve um cookie assinado (HMAC, `HttpOnly`).
+3. Qualquer outro aparelho que abrir a mesma URL vê "este link já está em
+   uso" — copiar o endereço não copia o cookie junto.
+4. As páginas (`/` e `/play/:id`) só abrem com esse cookie válido.
+
+**Limites — vale saber antes de confiar nisso:**
+
+- Se o link for repassado **antes** do primeiro uso, quem abrir primeiro fica
+  com ele. O vínculo é com o primeiro aparelho, não com uma pessoa.
+- Nada impede o dono legítimo de emprestar o próprio aparelho.
+- Limpar os dados do navegador derruba o vínculo — por isso existe o botão
+  **Religar** no admin, que solta o aparelho e deixa o próximo assumir.
+- Não é DRM: as ROMs são homebrew de distribuição livre e continuam
+  acessíveis por URL direta. O que o link protege é a **experiência**, não os
+  arquivos.
+
+### Painel `/admin`
+
+Gera os links, mostra o QR pronto pra imprimir, e acompanha o estado de cada
+um: `nunca usado` → `ativado` → `em uso agora` (sinal de vida a cada 60s).
+Dá pra **copiar o link**, **baixar o QR** (PNG), **religar** (soltar o
+aparelho), **revogar** (corta o acesso na hora) e **apagar**.
+
+### Ligando de verdade (3 variáveis)
+
+O deploy sobe com `ACCESS_MODE=open`, ou seja, **aberto pra todo mundo** — é
+o que mantém o demo público funcionando. Pra trancar:
+
+| variável | pra quê |
+|---|---|
+| `ADMIN_PASSWORD` | senha do `/admin`. Sem ela o painel não abre. |
+| `ACCESS_SECRET` | segredo que assina os cookies. Precisa ser fixo entre deploys, senão todo mundo é deslogado a cada publicação. Gere com `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. |
+| `ACCESS_MODE=locked` | passa a exigir link pra entrar. |
+
+E mais uma coisa, que **não é opcional em produção**: os links precisam de um
+Redis (Vercel KV ou Upstash) via `KV_REST_API_URL` + `KV_REST_API_TOKEN`. Sem
+isso eles ficam só na memória do processo — e em serverless o processo morre a
+toda hora, então o vínculo com o aparelho sumiria sozinho e a proteção não
+valeria nada. O admin avisa em amarelo quando está nesse modo.
 
 ## A vitrine (`GET /`)
 
-Uma tela só, sem rolagem nenhuma: `100dvh` em flex column, com o carrossel
-em `flex: 1` comendo todo o espaço que sobra. O tamanho da capa é calculado
-em JS a partir da largura **e** da altura disponíveis, então ela cresce em
-celular alto e encolhe em paisagem sem nunca estourar a tela. Testado de
-320x568 até 1280x800.
+Cara de painel de console, não de site. Uma tela só, sem rolagem:
 
-- **Carrossel 3D** estilo CoverFlow: capa ativa de frente, vizinhas giradas
-  no eixo Y e recuadas (`perspective` + `rotateY` + `translateZ`). Arrasta
-  com o dedo, toca numa capa lateral, usa as setas ou ← → do teclado.
-  O arrasto só assume o gesto depois de detectar que é horizontal, pra não
-  trocar de jogo quando a intenção era outra.
-- **Capa = screenshot real** do jogo (`public/covers/`), com
-  `image-rendering: pixelated` pra não borrar a pixel art.
-- **Tema dinâmico**: ao trocar de jogo, um `<canvas>` lê a cor média da capa
-  e repinta o acento e o fundo inteiro, com crossfade entre duas camadas
-  (`.theme-backdrop`). A cor de cada capa é extraída uma vez e fica em cache.
-- **Header enxuto**: só a marca e o botão de instalar (~34px de altura). Toda
-  a instrução sobre iOS saiu da tela e virou conteúdo do botão de instalar.
+- **A arte manda.** A capa do jogo é um retângulo grande (~45% da tela num
+  celular, 43% no desktop) e a mesma arte, borrada e sangrando até as bordas,
+  vira o fundo da tela inteira. Some com o resto: barra de 44px com a marca e
+  três ícones, e embaixo só console · gênero · título · JOGAR.
+- **O card nunca corta a arte.** O card é alto (pra encher a tela do celular)
+  mas a arte é larga; em vez de cortar, a própria arte borrada e ampliada
+  preenche o fundo do card (`.tile::before`) e a versão nítida fica inteira
+  por cima. Mesmo truque de app de música.
+- **Cor viva.** Um `<canvas>` lê a cor média da capa ativa e repinta acento,
+  brilho e marca. Cada jogo dá uma cor diferente (testado: 8 jogos, 8 cores).
+- **Busca escondida** atrás da lupa — só ocupa espaço quando é chamada.
+- Arrasta, toca numa capa lateral, usa as setas ou ← →. O arrasto só assume o
+  gesto depois de detectar que é horizontal.
 
 ## Instalar como app (PWA)
 
@@ -304,29 +353,33 @@ aparência espalha os botões pro lugar errado.
 
 ## Checklist de validação
 
-Rodado automaticamente (Playwright, `TODOS OS TESTES PASSARAM`) a cada
-alteração: layout sem scroll em 320x568 / 390x844 / 393x851 / 844x390 /
-1280x800, zero erro de JS, busca temática, ranking de relevância, sugestão,
-tema dinâmico, registro do service worker, fluxo de instalação nos dois
-caminhos (nativo e iOS), e o player inteiro (gate → clique repassado →
-`EJS_onGameStart` → pular abertura), além das 27 rotas de jogo, 27 capas e
-27 ROMs respondendo 200.
+Rodado automaticamente (Playwright) a cada alteração, dois conjuntos:
 
-Pra conferir no celular de verdade, o que só dá pra ver lá:
+**Interface** — layout sem rolagem em 320x568 / 360x740 / 390x844 / 844x390 /
+1280x800, zero erro de JS, busca temática e ranking, sugestão, cor/fundo
+acompanhando a arte, arrasto e teclado, service worker, instalação nos dois
+caminhos, player (sem popup duplo, gamepad enxuto) e as 27 rotas de jogo.
 
-- [ ] Um toque no play e o jogo abre — sem nenhum popup pedindo segundo clique
-- [ ] O jogo entra já passando da tela de título (pular abertura)
+**Acesso** — admin pede senha e recusa senha errada, API do admin bloqueada
+sem sessão, geração de link com QR, primeiro aparelho entra, segundo aparelho
+com o link copiado é barrado (403), visitante sem link é barrado, painel
+mostra "em uso agora", revogar corta na hora, reativar devolve e religar
+transfere o link pro próximo aparelho.
+
+Pra conferir no celular, o que só dá pra ver lá:
+
+- [ ] Um toque no play e o jogo abre — sem popup pedindo segundo clique
+- [ ] O jogo entra já passando da tela de título
 - [ ] Roda liso, sem travar
-- [ ] Save state: jogar, salvar pelo menu do EmulatorJS, F5 → volta de onde parou
-- [ ] Save separado por jogo (salvar num, abrir outro, o save não vaza)
-- [ ] Botão Instalar → app instala e abre em tela cheia sem barra
-- [ ] Controles virtuais não disparam pull-to-refresh nem voltar por swipe
+- [ ] Save state: jogar, salvar, F5 → volta de onde parou
+- [ ] Botão Instalar → app abre em tela cheia sem barra
+- [ ] Ler o QR num celular, depois tentar o mesmo link em outro → o segundo é barrado
 
 ## Fora de escopo (por enquanto)
 
-- Leitura de NFC (o `keyId` na URL é o mock disso)
-- Autenticação/usuário
-- Persistência de save state em banco (IndexedDB do navegador é suficiente pra essa validação)
+- Leitura de NFC (o `/t/:token` já é o destino que a tag vai apontar)
+- Conta/login de usuário — o vínculo hoje é com o aparelho, não com uma pessoa
+- Save state em banco (o IndexedDB do navegador dá conta desta fase)
 
 ## Troubleshooting
 
@@ -345,13 +398,13 @@ corrompida). Abre o DevTools (F12) → aba Console e Network:
 ## Nota sobre este ambiente de desenvolvimento
 
 O proxy de rede do sandbox onde este código foi escrito bloqueia
-`cdn.emulatorjs.org`, então **não deu pra rodar o emulador de verdade aqui
-dentro** — nenhum jogo foi visto rodando neste ambiente. O que foi testado
-automaticamente: toda a vitrine, o layout em 5 tamanhos de tela, a busca, a
-sugestão, o tema, o service worker, a instalação, e o fluxo do player até o
-clique ser repassado pro botão do EmulatorJS (com o botão dele simulado,
-inclusive aparecendo com atraso pra imitar rede lenta).
+`cdn.emulatorjs.org`, então **nenhum jogo rodou de fato aqui dentro**. Foi
+testado automaticamente tudo o mais: vitrine, layout em 5 tamanhos, busca,
+sugestão, tema, service worker, instalação, o controle de acesso ponta a
+ponta, e o fluxo do player até o clique ser repassado pro botão do EmulatorJS
+(com o botão dele simulado, inclusive aparecendo com atraso pra imitar rede
+lenta).
 
-O que só dá pra confirmar com o CDN acessível: o core WASM carregando de
-fato, o tempo real de abertura, e se o "pular abertura" acerta o timing em
-cada jogo. Roda o checklist acima no seu ambiente pra fechar.
+O que só dá pra confirmar com o CDN acessível: o core WASM carregando, o
+tempo real de abertura, e se o "pular abertura" acerta o timing em cada
+título.
