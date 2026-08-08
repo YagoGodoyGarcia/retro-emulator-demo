@@ -1,30 +1,441 @@
 {
-  "_comment": "id -> config do jogo. gameUrl/cover apontam pra /roms e /covers (servidos same-origin). tags = palavras-chave temáticas pra busca inteligente (além do título e do gênero).",
-  "flappybird-nes": { "core": "nes", "gameUrl": "/roms/flappybird.nes", "gameId": "flappybird-nes", "title": "Flappy Bird", "genre": "Reflexo", "cover": "flappybird-nes.png", "tags": ["pássaro", "voo", "obstáculo", "aves", "reflexo"] },
-  "invaders-nes": { "core": "nes", "gameUrl": "/roms/invaders.nes", "gameId": "invaders-nes", "title": "Invaders", "genre": "Nave / Tiro", "cover": "invaders-nes.png", "tags": ["espaço", "alienígena", "guerra", "nave", "tiro", "invasão", "ficção científica"] },
-  "cheril-nes": { "core": "nes", "gameUrl": "/roms/cheril-the-goddess.nes", "gameId": "cheril-nes", "title": "Cheril the Goddess", "genre": "Plataforma", "cover": "cheril-nes.png", "tags": ["deusa", "fantasia", "aventura", "perigo", "plataforma"] },
-  "driar-nes": { "core": "nes", "gameUrl": "/roms/driar.nes", "gameId": "driar-nes", "title": "Driar", "genre": "Ação-aventura", "cover": "driar-nes.png", "tags": ["aventura", "exploração", "fantasia", "batalha", "guerreiro", "espada"] },
-  "bootee-nes": { "core": "nes", "gameUrl": "/roms/bootee.nes", "gameId": "bootee-nes", "title": "Bootee", "genre": "Plataforma", "cover": "bootee-nes.png", "tags": ["plataforma", "pulos", "aventura"] },
-  "assimilate-nes": { "core": "nes", "gameUrl": "/roms/assimilate.nes", "gameId": "assimilate-nes", "title": "Assimilate", "genre": "Metroidvania", "cover": "assimilate-nes.png", "tags": ["ficção científica", "exploração", "terror", "alienígena", "invasão"] },
-  "nova-nes": { "core": "nes", "gameUrl": "/roms/novathesquirrel.nes", "gameId": "nova-nes", "title": "Nova the Squirrel", "genre": "Plataforma", "cover": "nova-nes.png", "tags": ["esquilo", "magia", "fantasia", "aventura", "plataforma", "animais"] },
-  "twindragons-nes": { "core": "nes", "gameUrl": "/roms/twindragons.nes", "gameId": "twindragons-nes", "title": "Twin Dragons", "genre": "Plataforma", "cover": "twindragons-nes.png", "tags": ["dragões", "fantasia", "aventura", "plataforma"] },
-  "owlia-nes": { "core": "nes", "gameUrl": "/roms/owlia.nes", "gameId": "owlia-nes", "title": "The Legends of Owlia", "genre": "Ação-aventura", "cover": "owlia-nes.png", "tags": ["aventura", "fantasia", "exploração", "coruja", "magia", "batalha", "masmorra"] },
-  "nomolos-nes": { "core": "nes", "gameUrl": "/roms/nomolos.nes", "gameId": "nomolos-nes", "title": "Nomolos: Storming the Catsle", "genre": "Plataforma", "cover": "nomolos-nes.png", "tags": ["castelo", "gatos", "aventura", "batalha", "plataforma"] },
-  "sgthelmet-nes": { "core": "nes", "gameUrl": "/roms/sgthelmet.nes", "gameId": "sgthelmet-nes", "title": "Sgt. Helmet Training Day", "genre": "Plataforma", "cover": "sgthelmet-nes.png", "tags": ["guerra", "soldado", "militar", "treinamento", "batalha", "exército"] },
-  "supertiltbro-nes": { "core": "nes", "gameUrl": "/roms/super-tilt-bro.nes", "gameId": "supertiltbro-nes", "title": "Super Tilt Bro", "genre": "Luta", "cover": "supertiltbro-nes.png", "tags": ["luta", "combate", "batalha", "multiplayer", "arena"] },
-  "rockfall-snes": { "core": "snes", "gameUrl": "/roms/rockfall.smc", "gameId": "rockfall-snes", "title": "Rockfall", "genre": "Puzzle / Ação", "cover": "rockfall-snes.png", "tags": ["puzzle", "mineração", "pedras", "caverna", "ação"] },
-  "nwarp-snes": { "core": "snes", "gameUrl": "/roms/nwarpdaisakusen.smc", "gameId": "nwarp-snes", "title": "N-Warp Daisakusen", "genre": "Nave / Tiro", "cover": "nwarp-snes.gif", "tags": ["espaço", "nave", "tiro", "guerra", "ficção científica", "batalha", "invasão"] },
-  "astrohawk-snes": { "core": "snes", "gameUrl": "/roms/astrohawk.smc", "gameId": "astrohawk-snes", "title": "Astro Hawk", "genre": "Nave / Tiro", "cover": "astrohawk-snes.png", "tags": ["espaço", "nave", "tiro", "guerra", "voo", "ficção científica"] },
-  "hilda-snes": { "core": "snes", "gameUrl": "/roms/hilda.sfc", "gameId": "hilda-snes", "title": "Hilda", "genre": "Aventura", "cover": "hilda-snes.png", "tags": ["aventura", "exploração", "fantasia"] },
-  "superbossgaiden-snes": { "core": "snes", "gameUrl": "/roms/superbossgaiden.sfc", "gameId": "superbossgaiden-snes", "title": "Super Boss Gaiden", "genre": "Ação", "cover": "superbossgaiden-snes.jpg", "tags": ["ação", "chefes", "batalha", "combate", "luta"] },
-  "anguna-gba": { "core": "gba", "gameUrl": "/roms/anguna.gba", "gameId": "anguna-gba", "title": "Anguna", "genre": "Ação-aventura", "cover": "anguna-gba.png", "tags": ["aventura", "exploração", "espada", "masmorra", "fantasia", "batalha", "guerreiro"] },
-  "metalwarrior4-gba": { "core": "gba", "gameUrl": "/roms/metalwarrior4.gba", "gameId": "metalwarrior4-gba", "title": "Metal Warrior 4", "genre": "Ação-RPG", "cover": "metalwarrior4-gba.png", "tags": ["ficção científica", "robôs", "guerra", "batalha", "guerreiro", "ação"] },
-  "airball-gba": { "core": "gba", "gameUrl": "/roms/airball.gba", "gameId": "airball-gba", "title": "Airball", "genre": "Puzzle / Ação", "cover": "airball-gba.png", "tags": ["puzzle", "física", "bola", "plataforma"] },
-  "castlemaster-gba": { "core": "gba", "gameUrl": "/roms/castlemaster.gba", "gameId": "castlemaster-gba", "title": "Castlemaster", "genre": "Estratégia", "cover": "castlemaster-gba.png", "tags": ["estratégia", "castelo", "construção", "medieval"] },
-  "hexavirus-gba": { "core": "gba", "gameUrl": "/roms/hexavirus.gba", "gameId": "hexavirus-gba", "title": "Hexavirus", "genre": "Puzzle", "cover": "hexavirus-gba.png", "tags": ["puzzle", "vírus", "tecnologia", "ficção científica"] },
-  "spout-gba": { "core": "gba", "gameUrl": "/roms/spout.gba", "gameId": "spout-gba", "title": "Spout", "genre": "Puzzle / Física", "cover": "spout-gba.png", "tags": ["puzzle", "água", "física"] },
-  "junkbots-md": { "core": "segaMD", "gameUrl": "/roms/junkbots.bin", "gameId": "junkbots-md", "title": "Junkbots", "genre": "Ação", "cover": "junkbots-md.png", "tags": ["robôs", "ação", "ficção científica", "sucata"] },
-  "astroperdido-md": { "core": "segaMD", "gameUrl": "/roms/astroperdido.bin", "gameId": "astroperdido-md", "title": "Astro Perdido", "genre": "Nave / Tiro", "cover": "astroperdido-md.png", "tags": ["espaço", "nave", "tiro", "guerra", "ficção científica", "astronauta"] },
-  "downforce-md": { "core": "segaMD", "gameUrl": "/roms/downforce.bin", "gameId": "downforce-md", "title": "Downforce", "genre": "Corrida", "cover": "downforce-md.png", "tags": ["corrida", "carros", "velocidade"] },
-  "miniplanets-md": { "core": "segaMD", "gameUrl": "/roms/miniplanets.bin", "gameId": "miniplanets-md", "title": "Miniplanets", "genre": "Puzzle / Ação", "cover": "miniplanets-md.png", "tags": ["espaço", "planetas", "puzzle", "ação"] }
+  "_comment": "id -> config do jogo. gameUrl/cover apontam pra /roms e /covers (servidos same-origin). tags = palavras-chave temáticas pra busca. featured: true fixa o jogo no início da vitrine com selo de destaque.",
+  "flappybird-nes": {
+    "core": "nes",
+    "gameUrl": "/roms/flappybird.nes",
+    "gameId": "flappybird-nes",
+    "title": "Flappy Bird",
+    "genre": "Reflexo",
+    "cover": "flappybird-nes.png",
+    "tags": [
+      "pássaro",
+      "voo",
+      "obstáculo",
+      "aves",
+      "reflexo"
+    ]
+  },
+  "invaders-nes": {
+    "core": "nes",
+    "gameUrl": "/roms/invaders.nes",
+    "gameId": "invaders-nes",
+    "title": "Invaders",
+    "genre": "Nave / Tiro",
+    "cover": "invaders-nes.png",
+    "tags": [
+      "espaço",
+      "alienígena",
+      "guerra",
+      "nave",
+      "tiro",
+      "invasão",
+      "ficção científica"
+    ]
+  },
+  "cheril-nes": {
+    "core": "nes",
+    "gameUrl": "/roms/cheril-the-goddess.nes",
+    "gameId": "cheril-nes",
+    "title": "Cheril the Goddess",
+    "genre": "Plataforma",
+    "cover": "cheril-nes.png",
+    "tags": [
+      "deusa",
+      "fantasia",
+      "aventura",
+      "perigo",
+      "plataforma"
+    ]
+  },
+  "driar-nes": {
+    "core": "nes",
+    "gameUrl": "/roms/driar.nes",
+    "gameId": "driar-nes",
+    "title": "Driar",
+    "genre": "Ação-aventura",
+    "cover": "driar-nes.png",
+    "tags": [
+      "aventura",
+      "exploração",
+      "fantasia",
+      "batalha",
+      "guerreiro",
+      "espada"
+    ]
+  },
+  "bootee-nes": {
+    "core": "nes",
+    "gameUrl": "/roms/bootee.nes",
+    "gameId": "bootee-nes",
+    "title": "Bootee",
+    "genre": "Plataforma",
+    "cover": "bootee-nes.png",
+    "tags": [
+      "plataforma",
+      "pulos",
+      "aventura"
+    ]
+  },
+  "assimilate-nes": {
+    "core": "nes",
+    "gameUrl": "/roms/assimilate.nes",
+    "gameId": "assimilate-nes",
+    "title": "Assimilate",
+    "genre": "Metroidvania",
+    "cover": "assimilate-nes.png",
+    "tags": [
+      "ficção científica",
+      "exploração",
+      "terror",
+      "alienígena",
+      "invasão"
+    ]
+  },
+  "nova-nes": {
+    "core": "nes",
+    "gameUrl": "/roms/novathesquirrel.nes",
+    "gameId": "nova-nes",
+    "title": "Nova the Squirrel",
+    "genre": "Plataforma",
+    "cover": "nova-nes.png",
+    "tags": [
+      "esquilo",
+      "magia",
+      "fantasia",
+      "aventura",
+      "plataforma",
+      "animais"
+    ],
+    "featured": true
+  },
+  "twindragons-nes": {
+    "core": "nes",
+    "gameUrl": "/roms/twindragons.nes",
+    "gameId": "twindragons-nes",
+    "title": "Twin Dragons",
+    "genre": "Plataforma",
+    "cover": "twindragons-nes.png",
+    "tags": [
+      "dragões",
+      "fantasia",
+      "aventura",
+      "plataforma"
+    ]
+  },
+  "owlia-nes": {
+    "core": "nes",
+    "gameUrl": "/roms/owlia.nes",
+    "gameId": "owlia-nes",
+    "title": "The Legends of Owlia",
+    "genre": "Ação-aventura",
+    "cover": "owlia-nes.png",
+    "tags": [
+      "aventura",
+      "fantasia",
+      "exploração",
+      "coruja",
+      "magia",
+      "batalha",
+      "masmorra"
+    ]
+  },
+  "nomolos-nes": {
+    "core": "nes",
+    "gameUrl": "/roms/nomolos.nes",
+    "gameId": "nomolos-nes",
+    "title": "Nomolos: Storming the Catsle",
+    "genre": "Plataforma",
+    "cover": "nomolos-nes.png",
+    "tags": [
+      "castelo",
+      "gatos",
+      "aventura",
+      "batalha",
+      "plataforma"
+    ]
+  },
+  "sgthelmet-nes": {
+    "core": "nes",
+    "gameUrl": "/roms/sgthelmet.nes",
+    "gameId": "sgthelmet-nes",
+    "title": "Sgt. Helmet Training Day",
+    "genre": "Plataforma",
+    "cover": "sgthelmet-nes.png",
+    "tags": [
+      "guerra",
+      "soldado",
+      "militar",
+      "treinamento",
+      "batalha",
+      "exército"
+    ]
+  },
+  "supertiltbro-nes": {
+    "core": "nes",
+    "gameUrl": "/roms/super-tilt-bro.nes",
+    "gameId": "supertiltbro-nes",
+    "title": "Super Tilt Bro",
+    "genre": "Luta",
+    "cover": "supertiltbro-nes.png",
+    "tags": [
+      "luta",
+      "combate",
+      "batalha",
+      "multiplayer",
+      "arena"
+    ]
+  },
+  "rockfall-snes": {
+    "core": "snes",
+    "gameUrl": "/roms/rockfall.smc",
+    "gameId": "rockfall-snes",
+    "title": "Rockfall",
+    "genre": "Puzzle / Ação",
+    "cover": "rockfall-snes.png",
+    "tags": [
+      "puzzle",
+      "mineração",
+      "pedras",
+      "caverna",
+      "ação"
+    ]
+  },
+  "nwarp-snes": {
+    "core": "snes",
+    "gameUrl": "/roms/nwarpdaisakusen.smc",
+    "gameId": "nwarp-snes",
+    "title": "N-Warp Daisakusen",
+    "genre": "Nave / Tiro",
+    "cover": "nwarp-snes.gif",
+    "tags": [
+      "espaço",
+      "nave",
+      "tiro",
+      "guerra",
+      "ficção científica",
+      "batalha",
+      "invasão"
+    ]
+  },
+  "astrohawk-snes": {
+    "core": "snes",
+    "gameUrl": "/roms/astrohawk.smc",
+    "gameId": "astrohawk-snes",
+    "title": "Astro Hawk",
+    "genre": "Nave / Tiro",
+    "cover": "astrohawk-snes.png",
+    "tags": [
+      "espaço",
+      "nave",
+      "tiro",
+      "guerra",
+      "voo",
+      "ficção científica"
+    ]
+  },
+  "hilda-snes": {
+    "core": "snes",
+    "gameUrl": "/roms/hilda.sfc",
+    "gameId": "hilda-snes",
+    "title": "Hilda",
+    "genre": "Aventura",
+    "cover": "hilda-snes.png",
+    "tags": [
+      "aventura",
+      "exploração",
+      "fantasia"
+    ]
+  },
+  "superbossgaiden-snes": {
+    "core": "snes",
+    "gameUrl": "/roms/superbossgaiden.sfc",
+    "gameId": "superbossgaiden-snes",
+    "title": "Super Boss Gaiden",
+    "genre": "Ação",
+    "cover": "superbossgaiden-snes.jpg",
+    "tags": [
+      "ação",
+      "chefes",
+      "batalha",
+      "combate",
+      "luta"
+    ]
+  },
+  "anguna-gba": {
+    "core": "gba",
+    "gameUrl": "/roms/anguna.gba",
+    "gameId": "anguna-gba",
+    "title": "Anguna",
+    "genre": "Ação-aventura",
+    "cover": "anguna-gba.png",
+    "tags": [
+      "aventura",
+      "exploração",
+      "espada",
+      "masmorra",
+      "fantasia",
+      "batalha",
+      "guerreiro"
+    ]
+  },
+  "metalwarrior4-gba": {
+    "core": "gba",
+    "gameUrl": "/roms/metalwarrior4.gba",
+    "gameId": "metalwarrior4-gba",
+    "title": "Metal Warrior 4",
+    "genre": "Ação-RPG",
+    "cover": "metalwarrior4-gba.png",
+    "tags": [
+      "ficção científica",
+      "robôs",
+      "guerra",
+      "batalha",
+      "guerreiro",
+      "ação"
+    ]
+  },
+  "airball-gba": {
+    "core": "gba",
+    "gameUrl": "/roms/airball.gba",
+    "gameId": "airball-gba",
+    "title": "Airball",
+    "genre": "Puzzle / Ação",
+    "cover": "airball-gba.png",
+    "tags": [
+      "puzzle",
+      "física",
+      "bola",
+      "plataforma"
+    ]
+  },
+  "castlemaster-gba": {
+    "core": "gba",
+    "gameUrl": "/roms/castlemaster.gba",
+    "gameId": "castlemaster-gba",
+    "title": "Castlemaster",
+    "genre": "Estratégia",
+    "cover": "castlemaster-gba.png",
+    "tags": [
+      "estratégia",
+      "castelo",
+      "construção",
+      "medieval"
+    ]
+  },
+  "hexavirus-gba": {
+    "core": "gba",
+    "gameUrl": "/roms/hexavirus.gba",
+    "gameId": "hexavirus-gba",
+    "title": "Hexavirus",
+    "genre": "Puzzle",
+    "cover": "hexavirus-gba.png",
+    "tags": [
+      "puzzle",
+      "vírus",
+      "tecnologia",
+      "ficção científica"
+    ]
+  },
+  "spout-gba": {
+    "core": "gba",
+    "gameUrl": "/roms/spout.gba",
+    "gameId": "spout-gba",
+    "title": "Spout",
+    "genre": "Puzzle / Física",
+    "cover": "spout-gba.png",
+    "tags": [
+      "puzzle",
+      "água",
+      "física"
+    ]
+  },
+  "junkbots-md": {
+    "core": "segaMD",
+    "gameUrl": "/roms/junkbots.bin",
+    "gameId": "junkbots-md",
+    "title": "Junkbots",
+    "genre": "Ação",
+    "cover": "junkbots-md.png",
+    "tags": [
+      "robôs",
+      "ação",
+      "ficção científica",
+      "sucata"
+    ]
+  },
+  "astroperdido-md": {
+    "core": "segaMD",
+    "gameUrl": "/roms/astroperdido.bin",
+    "gameId": "astroperdido-md",
+    "title": "Astro Perdido",
+    "genre": "Nave / Tiro",
+    "cover": "astroperdido-md.png",
+    "tags": [
+      "espaço",
+      "nave",
+      "tiro",
+      "guerra",
+      "ficção científica",
+      "astronauta"
+    ]
+  },
+  "downforce-md": {
+    "core": "segaMD",
+    "gameUrl": "/roms/downforce.bin",
+    "gameId": "downforce-md",
+    "title": "Downforce",
+    "genre": "Corrida",
+    "cover": "downforce-md.png",
+    "tags": [
+      "corrida",
+      "carros",
+      "velocidade"
+    ]
+  },
+  "miniplanets-md": {
+    "core": "segaMD",
+    "gameUrl": "/roms/miniplanets.bin",
+    "gameId": "miniplanets-md",
+    "title": "Miniplanets",
+    "genre": "Puzzle / Ação",
+    "cover": "miniplanets-md.png",
+    "tags": [
+      "espaço",
+      "planetas",
+      "puzzle",
+      "ação"
+    ]
+  },
+  "plataforma-md": {
+    "core": "segaMD",
+    "gameUrl": "/roms/plataforma-ultimate.bin",
+    "gameId": "plataforma-md",
+    "title": "Plataforma Ultimate",
+    "genre": "Plataforma",
+    "cover": "plataforma-md.png",
+    "featured": true,
+    "tags": [
+      "plataforma",
+      "pulos",
+      "moedas",
+      "corrida",
+      "velocidade",
+      "aventura"
+    ]
+  },
+  "megacheril-md": {
+    "core": "segaMD",
+    "gameUrl": "/roms/mega-cheril-perils.bin",
+    "gameId": "megacheril-md",
+    "title": "Mega Cheril Perils",
+    "genre": "Plataforma",
+    "cover": "megacheril-md.png",
+    "tags": [
+      "plataforma",
+      "pulos",
+      "aventura",
+      "fantasia",
+      "perigo"
+    ]
+  }
 }

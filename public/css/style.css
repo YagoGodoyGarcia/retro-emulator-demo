@@ -351,6 +351,46 @@ button {
   filter: brightness(0.5) saturate(0.8);
 }
 
+/* ---------- destaques ---------- */
+
+.tile--featured.is-active {
+  box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.9),
+    0 0 48px -4px rgba(250, 204, 21, 0.45),
+    0 34px 66px -20px rgba(0, 0, 0, 0.95);
+}
+
+.tile-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 2;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 0.55rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #1c1400;
+  background: linear-gradient(135deg, #fde68a, #f59e0b);
+  box-shadow: 0 6px 16px -6px rgba(0, 0, 0, 0.9);
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+/* Só o card em foco anuncia o selo; nos vizinhos ele vira ruído. */
+.tile:not(.is-active) .tile-badge {
+  opacity: 0;
+}
+
+.hud-exclusive {
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: #1c1400 !important;
+  background: linear-gradient(135deg, #fde68a, #f59e0b);
+  letter-spacing: 0.12em !important;
+  font-weight: 900 !important;
+}
+
 .stage-nav {
   position: absolute;
   top: 50%;

@@ -140,6 +140,7 @@
   var hudGenre = document.getElementById("hud-genre");
   var hudTitle = document.getElementById("hud-title");
   var hudNote = document.getElementById("hud-note");
+  var hudExclusive = document.getElementById("hud-exclusive");
   var launchLink = document.getElementById("launch");
   var backdropA = document.getElementById("art-a");
   var backdropB = document.getElementById("art-b");
@@ -186,6 +187,10 @@
     dragPx = dragPx || 0;
     var size = tileSize();
     var spacing = size.w * 0.78;
+    // O conteúdo anda JUNTO com o dedo: arrastou 100px pra esquerda, a fileira
+    // inteira desce 100px pra esquerda. (Estava somando ao contrário, então a
+    // fileira andava contra o dedo e ainda por cima o resultado ao soltar era
+    // o oposto do que a animação mostrava.)
     var dragSteps = dragPx / spacing;
 
     tiles.forEach(function (tile) {
@@ -198,7 +203,7 @@
     });
 
     visible.forEach(function (tile, i) {
-      var pos = i - activeIndex - dragSteps;
+      var pos = i - activeIndex + dragSteps;
       var absPos = Math.abs(pos);
       if (absPos > 2.6) return;
       var rotateY = clamp(pos * -22, -44, 44);
@@ -341,6 +346,7 @@
     }
     hud.hidden = false;
     var tile = visible[activeIndex];
+    if (hudExclusive) hudExclusive.hidden = !tile.dataset.featured;
     hudConsole.textContent = tile.dataset.consoleLabel;
     hudGenre.textContent = tile.dataset.genreLabel;
     hudTitle.textContent = tile.dataset.titleLabel;
@@ -570,6 +576,9 @@
   var startX = 0;
   var startY = 0;
   var currentDrag = 0;
+  var lastX = 0;
+  var lastT = 0;
+  var velocity = 0; // px por ms, pra reconhecer o peteleco rápido
 
   stage.addEventListener("pointerdown", function (e) {
     if (e.target.closest(".stage-nav")) return; // seta cuida do próprio clique
@@ -578,7 +587,10 @@
     pointerId = e.pointerId;
     startX = e.clientX;
     startY = e.clientY;
+    lastX = e.clientX;
+    lastT = e.timeStamp || Date.now();
     currentDrag = 0;
+    velocity = 0;
   });
 
   stage.addEventListener("pointermove", function (e) {
@@ -596,7 +608,21 @@
       tiles.forEach(function (tile) { tile.style.transition = "none"; });
     }
 
-    currentDrag = dx;
+    var now = e.timeStamp || Date.now();
+    var dt = now - lastT;
+    if (dt > 0) velocity = (e.clientX - lastX) / dt;
+    lastX = e.clientX;
+    lastT = now;
+
+    // Nas pontas o arrasto fica pesado em vez de travar seco — avisa que
+    // acabou a lista sem parecer que o gesto quebrou.
+    var spacing = tileSize().w * 0.78;
+    var overshoot =
+      (activeIndex === 0 && dx > 0) ||
+      (activeIndex === visible.length - 1 && dx < 0);
+    currentDrag = overshoot ? dx * 0.32 : dx;
+    if (overshoot) currentDrag = clamp(currentDrag, -spacing * 0.5, spacing * 0.5);
+
     layout(currentDrag);
   });
 
@@ -610,7 +636,17 @@
     setTimeout(function () { justDragged = false; }, 0);
     try { stage.releasePointerCapture(pointerId); } catch (err) {}
     tiles.forEach(function (tile) { tile.style.transition = ""; });
-    goTo(activeIndex + Math.round(-currentDrag / (tileSize().w * 0.78)));
+
+    var spacing = tileSize().w * 0.78;
+    // Peteleco rápido passa um jogo mesmo sem arrastar meia tela; arrasto
+    // devagar decide pela distância percorrida.
+    var step;
+    if (Math.abs(velocity) > 0.45 && Math.abs(currentDrag) > 12) {
+      step = velocity < 0 ? 1 : -1;
+    } else {
+      step = Math.round(-currentDrag / spacing);
+    }
+    goTo(activeIndex + step);
   }
 
   stage.addEventListener("pointerup", endDrag);

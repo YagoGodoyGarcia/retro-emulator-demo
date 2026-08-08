@@ -239,7 +239,11 @@ async function requireAccess(req, res, next) {
 
 app.get("/", requireAccess, (req, res) => {
   const keychains = loadKeychains();
-  const entries = Object.entries(keychains);
+  // Os destaques abrem a vitrine — é o primeiro card que o usuário vê ao
+  // chegar. O resto mantém a ordem do config.
+  const entries = Object.entries(keychains).sort(
+    ([, a], [, b]) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0)
+  );
 
   const coresPresent = [...new Set(entries.map(([, cfg]) => cfg.core))];
   const chips = ["all", ...coresPresent]
@@ -256,8 +260,12 @@ app.get("/", requireAccess, (req, res) => {
       const genre = cfg.genre || "";
       const coreFile = CORE_FILE[cfg.core];
       const coreUrl = coreFile ? `${EJS_CDN_URL}cores/${coreFile}-wasm.data` : "";
-      return `<button type="button" class="tile"
+      const badge = cfg.featured
+        ? '<span class="tile-badge">Exclusivo MYDE</span>'
+        : "";
+      return `<button type="button" class="tile${cfg.featured ? " tile--featured" : ""}"
         data-href="/play/${encodeURIComponent(keyId)}"
+        data-featured="${cfg.featured ? "1" : ""}"
         data-core="${escapeHtml(cfg.core)}"
         data-title="${escapeHtml(cfg.title)}"
         data-genre="${escapeHtml(genre)}"
@@ -269,7 +277,7 @@ app.get("/", requireAccess, (req, res) => {
         data-core-url="${escapeHtml(coreUrl)}"
         style="--accent:${style.accent};--art:url('/covers/${encodeURIComponent(cfg.cover)}')"
         aria-label="${escapeHtml(cfg.title)}"
-      ><img class="tile-img" src="/covers/${encodeURIComponent(cfg.cover)}" alt="" ${i < 3 ? 'fetchpriority="high"' : 'loading="lazy"'} draggable="false" /></button>`;
+      ><img class="tile-img" src="/covers/${encodeURIComponent(cfg.cover)}" alt="" ${i < 3 ? 'fetchpriority="high"' : 'loading="lazy"'} draggable="false" />${badge}</button>`;
     })
     .join("\n");
 
@@ -331,6 +339,7 @@ app.get("/", requireAccess, (req, res) => {
 
     <div class="hud" id="hud">
       <div class="hud-meta">
+        <span class="hud-exclusive" id="hud-exclusive" hidden>Exclusivo</span>
         <span id="hud-console"></span>
         <span id="hud-genre"></span>
       </div>

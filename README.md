@@ -99,8 +99,30 @@ Cara de painel de console, não de site. Uma tela só, sem rolagem:
 - **Cor viva.** Um `<canvas>` lê a cor média da capa ativa e repinta acento,
   brilho e marca. Cada jogo dá uma cor diferente (testado: 8 jogos, 8 cores).
 - **Busca escondida** atrás da lupa — só ocupa espaço quando é chamada.
+- **Destaques abrem a vitrine.** Jogos com `"featured": true` no config vêm
+  primeiro no trilho e ganham selo dourado "Exclusivo MYDE" no card em foco
+  mais uma pastilha "Exclusivo" no rodapé.
 - Arrasta, toca numa capa lateral, usa as setas ou ← →. O arrasto só assume o
   gesto depois de detectar que é horizontal.
+
+### O arrasto segue o dedo
+
+Comportamento nativo de carrossel, não invertido: **puxar da direita pra
+esquerda avança** pro próximo jogo, puxar da esquerda pra direita volta pro
+anterior — e o trilho anda junto com o dedo enquanto você arrasta (em repouso
+o card ativo está em `0px`; arrastando 90px pra esquerda ele está em `-90px`).
+
+Três detalhes que fazem parecer app de console e não `<div>` com `onclick`:
+
+- **Peteleco (flick) conta.** Velocidade acima de ~0.45px/ms avança um jogo
+  mesmo que o dedo tenha andado pouco. Arrasto curto e lento volta pro mesmo
+  card.
+- **Resistência nas pontas.** Na primeira e na última capa o trilho ainda se
+  move, mas com 32% do deslocamento e teto de meio card — dá o retorno tátil
+  de "acabou" sem travar seco.
+- **Arrastar não vira clique.** O `setPointerCapture` só entra depois que o
+  gesto se confirma horizontal, e o `click` logo após um arrasto é engolido —
+  senão soltar o dedo em cima de uma capa abria o jogo sem querer.
 
 ## Instalar como app (PWA)
 
@@ -217,7 +239,8 @@ Mapeamento em `config/keychains.json`. Cada entrada:
     "title": "Flappy Bird",
     "genre": "Reflexo",
     "cover": "flappybird-nes.png",
-    "tags": ["pássaro", "voo", "obstáculo", "aves", "reflexo"]
+    "tags": ["pássaro", "voo", "obstáculo", "aves", "reflexo"],
+    "featured": false
   }
 }
 ```
@@ -225,10 +248,13 @@ Mapeamento em `config/keychains.json`. Cada entrada:
 `cover` é o nome do arquivo em `public/covers/` (aceita `.png`/`.gif`/`.jpg`,
 o que o screenshot original do jogo já era). `tags` é a lista de
 palavras-chave temáticas usada na busca inteligente (ver seção acima).
+`featured` (opcional) promove o jogo a **exclusivo**: ele pula pra frente do
+trilho e ganha o selo dourado. É só ligar a flag — não tem nada hardcoded no
+código, então dá pra eleger outros destaques a qualquer momento.
 
-27 jogos, em 4 cores (`nes`, `snes`, `gba`, `segaMD`) — busca por nome/gênero/
+29 jogos, em 4 cores (`nes`, `snes`, `gba`, `segaMD`) — busca por nome/gênero/
 tema e filtro por console ficam embutidos no próprio carrossel da tela
-inicial.
+inicial. Os dois marcados com ★ são os destaques atuais.
 
 | id                      | core   | jogo                          | gênero          |
 |-------------------------|--------|-------------------------------|------------------|
@@ -238,7 +264,7 @@ inicial.
 | `driar-nes`             | nes    | Driar                         | Ação-aventura    |
 | `bootee-nes`            | nes    | Bootee                        | Plataforma       |
 | `assimilate-nes`        | nes    | Assimilate                    | Metroidvania     |
-| `nova-nes`              | nes    | Nova the Squirrel              | Plataforma       |
+| `nova-nes` ★            | nes    | Nova the Squirrel              | Plataforma       |
 | `twindragons-nes`       | nes    | Twin Dragons                  | Plataforma       |
 | `owlia-nes`             | nes    | The Legends of Owlia          | Ação-aventura    |
 | `nomolos-nes`           | nes    | Nomolos: Storming the Catsle  | Plataforma       |
@@ -259,8 +285,10 @@ inicial.
 | `astroperdido-md`       | segaMD | Astro Perdido                 | Nave / Tiro      |
 | `downforce-md`          | segaMD | Downforce                     | Corrida          |
 | `miniplanets-md`        | segaMD | Miniplanets                   | Puzzle / Ação    |
+| `plataforma-md` ★       | segaMD | Plataforma Ultimate           | Plataforma       |
+| `megacheril-md`         | segaMD | Mega Cheril Perils            | Plataforma       |
 
-`public/roms/` já passou de ~14MB com essa lista toda — segue tranquilo bem
+`public/roms/` já passou de ~16MB com essa lista toda — segue tranquilo bem
 abaixo do limite de bundle de qualquer plano da Vercel, mas é bom saber que
 tá crescendo se for continuar adicionando jogos.
 
@@ -268,10 +296,19 @@ tá crescendo se for continuar adicionando jogos.
 
 Nada de ROM comercial aqui — nem Nintendo, nem Sega, nem ninguém. Mario e
 Sonic são propriedade da Nintendo/Sega; eu não baixo, hospedo nem linko ROM
-pirateada desses jogos, então não incluí. O que fiz em troca: escolhi os 10
+pirateada desses jogos, então não incluí. O que fiz em troca: escolhi os
 melhores jogos **homebrew** (feitos por fãs, de graça, para redistribuição)
 que dão a mesma vibe retrô — plataforma, ação-aventura estilo Zelda,
 nave/tiro, RPG de ação — em vez de clones ou ROM hacks disfarçados.
+
+**Os "exclusivos" são o mecanismo, não os personagens.** A flag `featured`
+existe justamente pra você eleger o carro-chefe da vitrine. Hoje ela está em
+dois platformers livres que ocupam esses dois lugares: **Nova the Squirrel**
+(NES, plataforma com bichinho, o mais próximo de um mascote que dá pra
+distribuir legalmente) e **Plataforma Ultimate** (Mega Drive, corre e junta
+moedas). Se você tiver licença ou dump legal de um Mario/Sonic seu, é uma
+linha no `config/keychains.json` — `gameUrl` + `featured: true` — e ele vira
+o exclusivo da vitrine sem tocar em código.
 
 Todas vêm do [`retrobrews`](https://github.com/retrobrews) (mesmo projeto
 citado no briefing original), ficam versionadas em `public/roms/` e são
