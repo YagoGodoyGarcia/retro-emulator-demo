@@ -91,7 +91,8 @@ Cara de painel de console, não de site. Uma tela só, sem rolagem:
 - **A arte manda.** A capa do jogo é um retângulo grande (~45% da tela num
   celular, 43% no desktop) e a mesma arte, borrada e sangrando até as bordas,
   vira o fundo da tela inteira. Some com o resto: barra de 44px com a marca e
-  três ícones, e embaixo só console · gênero · título · JOGAR.
+  quatro ícones (buscar, ver tudo, sugerir, instalar), e embaixo só
+  console · gênero · título · JOGAR.
 - **O card nunca corta a arte.** O card é alto (pra encher a tela do celular)
   mas a arte é larga; em vez de cortar, a própria arte borrada e ampliada
   preenche o fundo do card (`.tile::before`) e a versão nítida fica inteira
@@ -123,6 +124,23 @@ Três detalhes que fazem parecer app de console e não `<div>` com `onclick`:
 - **Arrastar não vira clique.** O `setPointerCapture` só entra depois que o
   gesto se confirma horizontal, e o `click` logo após um arrasto é engolido —
   senão soltar o dedo em cima de uma capa abria o jogo sem querer.
+
+### Ver todos os jogos de uma vez (ícone de grade)
+
+Carrossel é ótimo pra passear e péssimo pra achar um jogo específico quando
+são 53. O segundo ícone da barra abre uma folha em tela cheia com **a
+biblioteca inteira em cards**, agrupada por console (NES, SNES, GBA, Mega
+Drive) com cabeçalho fixo e contagem por grupo. Numa tela de celular já dão
+14 capas na primeira dobra.
+
+- **Filtro próprio** no topo da folha, com o mesmo ranking por relevância da
+  busca da vitrine. Grupo que fica sem resultado some inteiro, em vez de
+  deixar um cabeçalho órfão.
+- **Tocar num card já abre o jogo** — nada de voltar pro carrossel primeiro.
+- Fecha no X, no `Esc`, ou tocando de novo no ícone.
+- A grade é montada por JS na **primeira abertura**, não no HTML inicial: 53
+  capas a mais no `GET /` atrasariam a vitrine, que é o que a pessoa vê antes.
+  As imagens da folha são `loading="lazy"`.
 
 ## Instalar como app (PWA)
 
@@ -252,63 +270,101 @@ palavras-chave temáticas usada na busca inteligente (ver seção acima).
 trilho e ganha o selo dourado. É só ligar a flag — não tem nada hardcoded no
 código, então dá pra eleger outros destaques a qualquer momento.
 
-29 jogos, em 4 cores (`nes`, `snes`, `gba`, `segaMD`) — busca por nome/gênero/
-tema e filtro por console ficam embutidos no próprio carrossel da tela
-inicial. Os dois marcados com ★ são os destaques atuais.
+53 jogos, em 4 cores (`nes`, `snes`, `gba`, `segaMD`) — busca por nome/gênero/
+tema, filtro por console e a folha "todos os jogos" cobrem a biblioteca
+inteira sem sair da tela inicial. Os dois marcados com ★ são os destaques.
 
-| id                      | core   | jogo                          | gênero          |
-|-------------------------|--------|-------------------------------|------------------|
-| `flappybird-nes`        | nes    | Flappy Bird                   | Reflexo          |
-| `invaders-nes`          | nes    | Invaders                      | Nave / Tiro      |
-| `cheril-nes`            | nes    | Cheril the Goddess            | Plataforma       |
-| `driar-nes`             | nes    | Driar                         | Ação-aventura    |
-| `bootee-nes`            | nes    | Bootee                        | Plataforma       |
-| `assimilate-nes`        | nes    | Assimilate                    | Metroidvania     |
-| `nova-nes` ★            | nes    | Nova the Squirrel              | Plataforma       |
-| `twindragons-nes`       | nes    | Twin Dragons                  | Plataforma       |
-| `owlia-nes`             | nes    | The Legends of Owlia          | Ação-aventura    |
-| `nomolos-nes`           | nes    | Nomolos: Storming the Catsle  | Plataforma       |
-| `sgthelmet-nes`         | nes    | Sgt. Helmet Training Day      | Plataforma       |
-| `supertiltbro-nes`      | nes    | Super Tilt Bro                | Luta             |
-| `rockfall-snes`         | snes   | Rockfall                      | Puzzle / Ação    |
-| `nwarp-snes`            | snes   | N-Warp Daisakusen             | Nave / Tiro      |
-| `astrohawk-snes`        | snes   | Astro Hawk                    | Nave / Tiro      |
-| `hilda-snes`            | snes   | Hilda                         | Aventura         |
-| `superbossgaiden-snes`  | snes   | Super Boss Gaiden             | Ação             |
-| `anguna-gba`            | gba    | Anguna                        | Ação-aventura    |
-| `metalwarrior4-gba`     | gba    | Metal Warrior 4               | Ação-RPG         |
-| `airball-gba`           | gba    | Airball                       | Puzzle / Ação    |
-| `castlemaster-gba`      | gba    | Castlemaster                  | Estratégia       |
-| `hexavirus-gba`         | gba    | Hexavirus                     | Puzzle           |
-| `spout-gba`             | gba    | Spout                         | Puzzle / Física  |
-| `junkbots-md`           | segaMD | Junkbots                      | Ação             |
-| `astroperdido-md`       | segaMD | Astro Perdido                 | Nave / Tiro      |
-| `downforce-md`          | segaMD | Downforce                     | Corrida          |
-| `miniplanets-md`        | segaMD | Miniplanets                   | Puzzle / Ação    |
-| `plataforma-md` ★       | segaMD | Plataforma Ultimate           | Plataforma       |
-| `megacheril-md`         | segaMD | Mega Cheril Perils            | Plataforma       |
+| id                     | core   | jogo                              | gênero              |
+|------------------------|--------|-----------------------------------|---------------------|
+| `flappybird-nes`       | nes    | Flappy Bird                       | Reflexo             |
+| `invaders-nes`         | nes    | Invaders                          | Nave / Tiro         |
+| `cheril-nes`           | nes    | Cheril the Goddess                | Plataforma          |
+| `driar-nes`            | nes    | Driar                             | Ação-aventura       |
+| `bootee-nes`           | nes    | Bootee                            | Plataforma          |
+| `assimilate-nes`       | nes    | Assimilate                        | Metroidvania        |
+| `nova-nes`             | nes    | Nova the Squirrel                 | Plataforma          |
+| `twindragons-nes`      | nes    | Twin Dragons                      | Plataforma          |
+| `owlia-nes`            | nes    | The Legends of Owlia              | Ação-aventura       |
+| `nomolos-nes`          | nes    | Nomolos: Storming the Catsle      | Plataforma          |
+| `sgthelmet-nes`        | nes    | Sgt. Helmet Training Day          | Plataforma          |
+| `supertiltbro-nes`     | nes    | Super Tilt Bro                    | Luta                |
+| `rockfall-snes`        | snes   | Rockfall                          | Puzzle / Ação       |
+| `nwarp-snes`           | snes   | N-Warp Daisakusen                 | Nave / Tiro         |
+| `astrohawk-snes`       | snes   | Astro Hawk                        | Nave / Tiro         |
+| `hilda-snes`           | snes   | Hilda                             | Aventura            |
+| `superbossgaiden-snes` | snes   | Super Boss Gaiden                 | Ação                |
+| `anguna-gba`           | gba    | Anguna                            | Ação-aventura       |
+| `metalwarrior4-gba`    | gba    | Metal Warrior 4                   | Ação-RPG            |
+| `airball-gba`          | gba    | Airball                           | Puzzle / Ação       |
+| `castlemaster-gba`     | gba    | Castlemaster                      | Estratégia          |
+| `hexavirus-gba`        | gba    | Hexavirus                         | Puzzle              |
+| `spout-gba`            | gba    | Spout                             | Puzzle / Física     |
+| `junkbots-md`          | segaMD | Junkbots                          | Ação                |
+| `astroperdido-md`      | segaMD | Astro Perdido                     | Nave / Tiro         |
+| `downforce-md`         | segaMD | Downforce                         | Corrida             |
+| `miniplanets-md`       | segaMD | Miniplanets                       | Puzzle / Ação       |
+| `plataforma-md`        | segaMD | Plataforma Ultimate               | Plataforma          |
+| `megacheril-md`        | segaMD | Mega Cheril Perils                | Plataforma          |
+| `ababol-nes`           | nes    | Sir Ababol Remastered             | Plataforma          |
+| `uwol-nes`             | nes    | Super Uwol                        | Plataforma          |
+| `ninja-nes`            | nes    | Purple Cape Man: Vigilante Ninja  | Ação / Plataforma   |
+| `lala-nes`             | nes    | Lala the Magical                  | Plataforma          |
+| `miedow-nes`           | nes    | Miedow: Cheril's Nightmares       | Aventura / Puzzle   |
+| `jetpaco-nes`          | nes    | Jet Paco: Space Agent             | Plataforma          |
+| `megamountain-nes`     | nes    | Mega Mountain                     | Plataforma          |
+| `megafamily-snes` ★    | snes   | Mega Family Bros                  | Plataforma          |
+| `uwolquest-snes`       | snes   | Uwol: Quest for Money             | Plataforma          |
+| `skipp-snes`           | snes   | Skipp and Friends                 | Puzzle              |
+| `bucket-snes`          | snes   | Bucket                            | Puzzle / Ação       |
+| `blt-snes`             | snes   | BLT                               | Nave / Tiro         |
+| `tchou-snes`           | snes   | Tchou 2                           | Nave / Tiro         |
+| `waimanu-gba`          | gba    | Waimanu: Grinding Block Adventure | Plataforma          |
+| `goodboy-gba`          | gba    | Goodboy Advance                   | Plataforma          |
+| `powerpig-gba`         | gba    | Power Pig                         | Plataforma / Puzzle |
+| `ninjasack-gba`        | gba    | Ninjasack                         | Luta                |
+| `vilq-md` ★            | segaMD | VilQ Adventure                    | Plataforma          |
+| `oldtowers-md`         | segaMD | Old Towers                        | Puzzle / Ação       |
+| `dragonscastle-md`     | segaMD | Dragon's Castle                   | Ação-aventura       |
+| `gravitypig-md`        | segaMD | Gravity Pig                       | Plataforma          |
+| `xump2-md`             | segaMD | Xump 2                            | Puzzle              |
+| `griels-md`            | segaMD | Griel's Quest                     | Ação-aventura       |
+| `papicommando-md`      | segaMD | Papi Commando Remix               | Ação / Tiro         |
 
-`public/roms/` já passou de ~16MB com essa lista toda — segue tranquilo bem
+`public/roms/` já passou de ~35MB com essa lista toda — segue tranquilo bem
 abaixo do limite de bundle de qualquer plano da Vercel, mas é bom saber que
 tá crescendo se for continuar adicionando jogos.
 
 ### Sobre as ROMs (e por que não tem Mario/Sonic)
 
 Nada de ROM comercial aqui — nem Nintendo, nem Sega, nem ninguém. Mario e
-Sonic são propriedade da Nintendo/Sega; eu não baixo, hospedo nem linko ROM
-pirateada desses jogos, então não incluí. O que fiz em troca: escolhi os
-melhores jogos **homebrew** (feitos por fãs, de graça, para redistribuição)
-que dão a mesma vibe retrô — plataforma, ação-aventura estilo Zelda,
-nave/tiro, RPG de ação — em vez de clones ou ROM hacks disfarçados.
+Sonic são propriedade da Nintendo/Sega, e nem a permissão do dono do projeto
+muda isso: quem detém o direito é o titular do copyright, e uso não-comercial
+não torna a distribuição legal. Então não tem, e não é por falta de pedido.
+
+O que tem no lugar: **homebrew** — jogos feitos por autores independentes e
+publicados de graça pra redistribuição, cobrindo os mesmos gêneros
+(plataforma, ação-aventura estilo Zelda, nave/tiro, ação-RPG, puzzle). Nada
+de clone com sprite roubado ou ROM hack disfarçado.
 
 **Os "exclusivos" são o mecanismo, não os personagens.** A flag `featured`
-existe justamente pra você eleger o carro-chefe da vitrine. Hoje ela está em
-dois platformers livres que ocupam esses dois lugares: **Nova the Squirrel**
-(NES, plataforma com bichinho, o mais próximo de um mascote que dá pra
-distribuir legalmente) e **Plataforma Ultimate** (Mega Drive, corre e junta
-moedas). Se você tiver licença ou dump legal de um Mario/Sonic seu, é uma
-linha no `config/keychains.json` — `gameUrl` + `featured: true` — e ele vira
-o exclusivo da vitrine sem tocar em código.
+existe pra você eleger o carro-chefe da vitrine, e hoje ela está nos dois
+homebrew que mais chegam perto do que as pessoas procuram quando digitam
+"Mario" e "Sonic":
+
+| busca | o que abre | por quê |
+|---|---|---|
+| `mario` | **Mega Family Bros** (SNES) | platformer original do DIEUDUNET, com moedas, canos e blocos — arte própria, não sprite ripado |
+| `sonic` | **VilQ Adventure** (Mega Drive) | jump-'n-run de rolagem contínua com mascote animal e ênfase em velocidade |
+
+Isso é feito em `SYNONYM_GROUPS` (`public/js/library.js`): "mario" e "sonic"
+entram como sinônimos de *moedas/canos/irmãos* e *mascote/velocidade/anéis*.
+Devolver "nenhum resultado" pra dois dos termos mais buscados do retrô era
+pior do que levar a pessoa até o jogo mais parecido — os cards continuam com
+o título real, ninguém é induzido a achar que é o jogo original.
+
+Se você tiver licença ou um dump legal de um cartucho seu, é uma linha no
+`config/keychains.json` (`gameUrl` + `featured: true`) e ele vira o exclusivo
+da vitrine sem tocar em código.
 
 Todas vêm do [`retrobrews`](https://github.com/retrobrews) (mesmo projeto
 citado no briefing original), ficam versionadas em `public/roms/` e são
@@ -390,12 +446,22 @@ aparência espalha os botões pro lugar errado.
 
 ## Checklist de validação
 
-Rodado automaticamente (Playwright) a cada alteração, dois conjuntos:
+Rodado automaticamente (Playwright) a cada alteração, quatro conjuntos:
 
 **Interface** — layout sem rolagem em 320x568 / 360x740 / 390x844 / 844x390 /
-1280x800, zero erro de JS, busca temática e ranking, sugestão, cor/fundo
-acompanhando a arte, arrasto e teclado, service worker, instalação nos dois
-caminhos, player (sem popup duplo, gamepad enxuto) e as 27 rotas de jogo.
+1280x800, zero erro de JS, busca temática e ranking (incluindo "mario" e
+"sonic" caindo no platformer certo), sugestão, cor/fundo acompanhando a arte,
+arrasto e teclado, service worker, instalação nos dois caminhos, player (sem
+popup duplo, gamepad enxuto) e as 53 rotas de jogo.
+
+**Arrasto** — direção (esquerda = próximo, direita = anterior), conteúdo
+acompanhando o dedo, flick curto, arrasto lento que volta pro mesmo card e
+resistência na primeira capa.
+
+**Lista completa** — abre e fecha (X, Esc, ícone), mostra os 53 jogos
+agrupados nos 4 consoles, 14 capas na primeira dobra sem rolagem horizontal,
+filtro que esconde grupo vazio, selo nos exclusivos, e tocar num card abre o
+jogo. Sem erro de JS e sem nenhum arquivo 404.
 
 **Acesso** — admin pede senha e recusa senha errada, API do admin bloqueada
 sem sessão, geração de link com QR, primeiro aparelho entra, segundo aparelho

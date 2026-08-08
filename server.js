@@ -304,6 +304,9 @@ app.get("/", requireAccess, (req, res) => {
         <button type="button" class="icon-btn" id="search-toggle" aria-label="Buscar" aria-expanded="false">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
         </button>
+        <button type="button" class="icon-btn" id="grid-toggle" aria-label="Ver todos os jogos" aria-expanded="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.6"/><rect x="14" y="3" width="7" height="7" rx="1.6"/><rect x="3" y="14" width="7" height="7" rx="1.6"/><rect x="14" y="14" width="7" height="7" rx="1.6"/></svg>
+        </button>
         <button type="button" class="icon-btn" id="pick" aria-label="Sugerir um jogo pra mim">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/><path d="M18 15l.9 2.1L21 18l-2.1.9L18 21l-.9-2.1L15 18l2.1-.9z"/></svg>
         </button>
@@ -351,6 +354,20 @@ app.get("/", requireAccess, (req, res) => {
       </a>
     </div>
   </main>
+
+  <div class="library-sheet" id="library-sheet" hidden>
+    <header class="library-head">
+      <div class="library-search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input type="search" id="library-search-input" placeholder="Filtrar por nome, gênero ou tema" autocomplete="off" aria-label="Filtrar a lista de jogos" />
+      </div>
+      <button type="button" class="icon-btn" id="library-close" aria-label="Fechar a lista">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </header>
+    <div class="library-count" id="library-count"></div>
+    <div class="library-scroll" id="library-scroll"></div>
+  </div>
 
   <div class="sheet" id="ios-sheet" hidden>
     <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="ios-sheet-title">

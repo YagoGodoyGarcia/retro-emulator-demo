@@ -35,6 +35,11 @@
     ["corrida", "carro", "carros", "velocidade", "piloto", "racha", "race", "veloz"],
     ["puzzle", "quebra-cabeca", "raciocinio", "logica", "pensar", "cerebro", "tabuleiro"],
     ["plataforma", "pulo", "pulos", "pular", "platformer"],
+    // Todo mundo procura pelos dois nomes que definiram o gênero. Não temos
+    // esses jogos (são da Nintendo e da Sega), mas devolver "nenhum resultado"
+    // é pior do que levar a pessoa até os platformers que mais lembram eles.
+    ["mario", "encanador", "bigode", "moedas", "canos", "irmaos", "cogumelo"],
+    ["sonic", "ourico", "anel", "aneis", "mascote", "veloz", "loop"],
     ["luta", "briga", "pancadaria", "arena", "versus", "fighting", "combate", "socos"],
     ["tiro", "atirar", "shooter", "shmup", "disparo"],
     ["terror", "medo", "sombrio", "escuro", "horror", "assustador"],
@@ -561,6 +566,174 @@
     e.preventDefault();
     launch(visible[activeIndex]);
   });
+
+  // -------------------------------------------------------------------
+  // lista completa (grade)
+  //
+  // O carrossel é ótimo pra passear, mas ruim pra achar um jogo específico
+  // numa biblioteca grande. Esta folha mostra tudo de uma vez, agrupado por
+  // console, com filtro próprio. Tocar num card já abre o jogo.
+  // -------------------------------------------------------------------
+
+  (function () {
+    var sheet = document.getElementById("library-sheet");
+    var openBtn = document.getElementById("grid-toggle");
+    var closeBtn = document.getElementById("library-close");
+    var scroller = document.getElementById("library-scroll");
+    var input = document.getElementById("library-search-input");
+    var counter = document.getElementById("library-count");
+    if (!sheet || !openBtn || !scroller) return;
+
+    var cards = null; // { el, tile } — montado uma vez, no primeiro clique
+
+    function build() {
+      if (cards) return;
+      cards = [];
+
+      // Agrupa por console mantendo a ordem em que os consoles aparecem no
+      // catálogo, pra lista não embaralhar a cada abertura.
+      var order = [];
+      var groups = {};
+      tiles.forEach(function (tile) {
+        var label = tile.dataset.consoleLabel;
+        if (!groups[label]) {
+          groups[label] = [];
+          order.push(label);
+        }
+        groups[label].push(tile);
+      });
+
+      var frag = document.createDocumentFragment();
+      order.forEach(function (label) {
+        var section = document.createElement("section");
+        section.className = "library-group";
+
+        var head = document.createElement("h2");
+        head.className = "library-group-title";
+        head.textContent = label;
+        var badge = document.createElement("span");
+        badge.textContent = groups[label].length;
+        head.appendChild(badge);
+        section.appendChild(head);
+
+        var grid = document.createElement("div");
+        grid.className = "library-grid";
+
+        groups[label].forEach(function (tile) {
+          var card = document.createElement("a");
+          card.className = "library-card";
+          card.href = tile.dataset.href;
+          if (tile.dataset.featured) card.classList.add("library-card--featured");
+
+          var thumb = document.createElement("div");
+          thumb.className = "library-thumb";
+          var img = document.createElement("img");
+          img.src = tile.querySelector(".tile-img").src;
+          img.alt = "";
+          img.loading = "lazy";
+          img.decoding = "async";
+          img.draggable = false;
+          thumb.appendChild(img);
+          if (tile.dataset.featured) {
+            var star = document.createElement("span");
+            star.className = "library-star";
+            star.textContent = "Exclusivo";
+            thumb.appendChild(star);
+          }
+          card.appendChild(thumb);
+
+          var name = document.createElement("span");
+          name.className = "library-name";
+          name.textContent = tile.dataset.titleLabel;
+          card.appendChild(name);
+
+          var genre = document.createElement("span");
+          genre.className = "library-genre";
+          genre.textContent = tile.dataset.genreLabel;
+          card.appendChild(genre);
+
+          card.addEventListener("click", function (e) {
+            e.preventDefault();
+            launch(tile);
+          });
+
+          grid.appendChild(card);
+          cards.push({ el: card, tile: tile, section: section });
+        });
+
+        section.appendChild(grid);
+        frag.appendChild(section);
+      });
+
+      scroller.appendChild(frag);
+    }
+
+    function applyFilter() {
+      var query = input ? input.value.trim() : "";
+      var shown = 0;
+
+      cards.forEach(function (row) {
+        var ok = !query || scoreGame(row.tile, query) > 0;
+        row.el.hidden = !ok;
+        if (ok) shown++;
+      });
+
+      // Esconde o cabeçalho de um console que ficou sem nenhum jogo visível.
+      var seen = [];
+      cards.forEach(function (row) {
+        if (seen.indexOf(row.section) !== -1) return;
+        seen.push(row.section);
+        row.section.hidden = !cards.some(function (r) {
+          return r.section === row.section && !r.el.hidden;
+        });
+      });
+
+      if (counter) {
+        counter.textContent = query
+          ? shown + (shown === 1 ? " jogo encontrado" : " jogos encontrados")
+          : cards.length + " jogos na biblioteca";
+      }
+    }
+
+    function open() {
+      build();
+      applyFilter();
+      sheet.hidden = false;
+      // reflow antes da classe, senão a transição de entrada não roda
+      void sheet.offsetWidth;
+      sheet.classList.add("is-open");
+      openBtn.setAttribute("aria-expanded", "true");
+      document.body.classList.add("sheet-open");
+      scroller.scrollTop = 0;
+    }
+
+    function close() {
+      sheet.classList.remove("is-open");
+      openBtn.setAttribute("aria-expanded", "false");
+      document.body.classList.remove("sheet-open");
+      var done = function () {
+        sheet.hidden = true;
+        sheet.removeEventListener("transitionend", done);
+      };
+      if (prefersReducedMotion) done();
+      else sheet.addEventListener("transitionend", done);
+      openBtn.focus();
+    }
+
+    openBtn.addEventListener("click", function () {
+      if (sheet.hidden) open();
+      else close();
+    });
+    closeBtn.addEventListener("click", close);
+    if (input) input.addEventListener("input", applyFilter);
+
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && !sheet.hidden) {
+        e.preventDefault();
+        close();
+      }
+    });
+  })();
 
   // Arrastar pra folhear.
   //

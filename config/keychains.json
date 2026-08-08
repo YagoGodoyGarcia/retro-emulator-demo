@@ -105,8 +105,7 @@
       "aventura",
       "plataforma",
       "animais"
-    ],
-    "featured": true
+    ]
   },
   "twindragons-nes": {
     "core": "nes",
@@ -413,13 +412,13 @@
     "title": "Plataforma Ultimate",
     "genre": "Plataforma",
     "cover": "plataforma-md.png",
-    "featured": true,
     "tags": [
       "plataforma",
       "pulos",
       "moedas",
       "corrida",
       "velocidade",
+      "mascote",
       "aventura"
     ]
   },
@@ -436,6 +435,385 @@
       "aventura",
       "fantasia",
       "perigo"
+    ]
+  },
+  "ababol-nes": {
+    "core": "nes",
+    "gameUrl": "/roms/ababol-nes.nes",
+    "gameId": "ababol-nes",
+    "title": "Sir Ababol Remastered",
+    "genre": "Plataforma",
+    "cover": "ababol-nes.png",
+    "tags": [
+      "plataforma",
+      "cavaleiro",
+      "medieval",
+      "fantasia",
+      "aventura",
+      "pulos"
+    ]
+  },
+  "uwol-nes": {
+    "core": "nes",
+    "gameUrl": "/roms/uwol-nes.nes",
+    "gameId": "uwol-nes",
+    "title": "Super Uwol",
+    "genre": "Plataforma",
+    "cover": "uwol-nes.png",
+    "tags": [
+      "plataforma",
+      "pulos",
+      "moedas",
+      "aventura",
+      "fantasia"
+    ]
+  },
+  "ninja-nes": {
+    "core": "nes",
+    "gameUrl": "/roms/ninja-nes.nes",
+    "gameId": "ninja-nes",
+    "title": "Purple Cape Man: Vigilante Ninja",
+    "genre": "Ação / Plataforma",
+    "cover": "ninja-nes.png",
+    "tags": [
+      "ninja",
+      "luta",
+      "combate",
+      "plataforma",
+      "herói",
+      "chefes"
+    ]
+  },
+  "lala-nes": {
+    "core": "nes",
+    "gameUrl": "/roms/lala-nes.nes",
+    "gameId": "lala-nes",
+    "title": "Lala the Magical",
+    "genre": "Plataforma",
+    "cover": "lala-nes.png",
+    "tags": [
+      "magia",
+      "fantasia",
+      "plataforma",
+      "aventura",
+      "ruínas",
+      "feitiço"
+    ]
+  },
+  "miedow-nes": {
+    "core": "nes",
+    "gameUrl": "/roms/miedow-nes.nes",
+    "gameId": "miedow-nes",
+    "title": "Miedow: Cheril's Nightmares",
+    "genre": "Aventura / Puzzle",
+    "cover": "miedow-nes.png",
+    "tags": [
+      "pesadelo",
+      "terror",
+      "puzzle",
+      "exploração",
+      "aventura",
+      "chaves"
+    ]
+  },
+  "jetpaco-nes": {
+    "core": "nes",
+    "gameUrl": "/roms/jetpaco-nes.nes",
+    "gameId": "jetpaco-nes",
+    "title": "Jet Paco: Space Agent",
+    "genre": "Plataforma",
+    "cover": "jetpaco-nes.png",
+    "tags": [
+      "espaço",
+      "jetpack",
+      "voo",
+      "nave",
+      "exploração",
+      "plataforma"
+    ]
+  },
+  "megamountain-nes": {
+    "core": "nes",
+    "gameUrl": "/roms/megamountain-nes.nes",
+    "gameId": "megamountain-nes",
+    "title": "Mega Mountain",
+    "genre": "Plataforma",
+    "cover": "megamountain-nes.png",
+    "tags": [
+      "montanha",
+      "escalada",
+      "resgate",
+      "plataforma",
+      "pulos",
+      "aventura"
+    ]
+  },
+  "megafamily-snes": {
+    "core": "snes",
+    "gameUrl": "/roms/megafamily-snes.smc",
+    "gameId": "megafamily-snes",
+    "title": "Mega Family Bros",
+    "genre": "Plataforma",
+    "cover": "megafamily-snes.png",
+    "featured": true,
+    "tags": [
+      "plataforma",
+      "pulos",
+      "moedas",
+      "canos",
+      "aventura",
+      "irmãos",
+      "clássico"
+    ]
+  },
+  "uwolquest-snes": {
+    "core": "snes",
+    "gameUrl": "/roms/uwolquest-snes.sfc",
+    "gameId": "uwolquest-snes",
+    "title": "Uwol: Quest for Money",
+    "genre": "Plataforma",
+    "cover": "uwolquest-snes.png",
+    "tags": [
+      "plataforma",
+      "moedas",
+      "pulos",
+      "masmorra",
+      "aventura"
+    ]
+  },
+  "skipp-snes": {
+    "core": "snes",
+    "gameUrl": "/roms/skipp-snes.smc",
+    "gameId": "skipp-snes",
+    "title": "Skipp and Friends",
+    "genre": "Puzzle",
+    "cover": "skipp-snes.png",
+    "tags": [
+      "puzzle",
+      "cooperativo",
+      "raciocínio",
+      "fases"
+    ]
+  },
+  "bucket-snes": {
+    "core": "snes",
+    "gameUrl": "/roms/bucket-snes.smc",
+    "gameId": "bucket-snes",
+    "title": "Bucket",
+    "genre": "Puzzle / Ação",
+    "cover": "bucket-snes.png",
+    "tags": [
+      "urso",
+      "gelo",
+      "animais",
+      "puzzle",
+      "ação"
+    ]
+  },
+  "blt-snes": {
+    "core": "snes",
+    "gameUrl": "/roms/blt-snes.sfc",
+    "gameId": "blt-snes",
+    "title": "BLT",
+    "genre": "Nave / Tiro",
+    "cover": "blt-snes.png",
+    "tags": [
+      "nave",
+      "tiro",
+      "vertical",
+      "espaço",
+      "guerra"
+    ]
+  },
+  "tchou-snes": {
+    "core": "snes",
+    "gameUrl": "/roms/tchou-snes.smc",
+    "gameId": "tchou-snes",
+    "title": "Tchou 2",
+    "genre": "Nave / Tiro",
+    "cover": "tchou-snes.png",
+    "tags": [
+      "espaço",
+      "nave",
+      "tiro",
+      "alienígena",
+      "ficção científica",
+      "invasão"
+    ]
+  },
+  "waimanu-gba": {
+    "core": "gba",
+    "gameUrl": "/roms/waimanu-gba.gba",
+    "gameId": "waimanu-gba",
+    "title": "Waimanu: Grinding Block Adventure",
+    "genre": "Plataforma",
+    "cover": "waimanu-gba.png",
+    "tags": [
+      "pinguim",
+      "plataforma",
+      "blocos",
+      "aventura",
+      "animais"
+    ]
+  },
+  "goodboy-gba": {
+    "core": "gba",
+    "gameUrl": "/roms/goodboy-gba.gba",
+    "gameId": "goodboy-gba",
+    "title": "Goodboy Advance",
+    "genre": "Plataforma",
+    "cover": "goodboy-gba.png",
+    "tags": [
+      "cachorro",
+      "espaço",
+      "foguete",
+      "exploração",
+      "plataforma",
+      "animais"
+    ]
+  },
+  "powerpig-gba": {
+    "core": "gba",
+    "gameUrl": "/roms/powerpig-gba.gba",
+    "gameId": "powerpig-gba",
+    "title": "Power Pig",
+    "genre": "Plataforma / Puzzle",
+    "cover": "powerpig-gba.png",
+    "tags": [
+      "porco",
+      "animais",
+      "puzzle",
+      "plataforma",
+      "fases"
+    ]
+  },
+  "ninjasack-gba": {
+    "core": "gba",
+    "gameUrl": "/roms/ninjasack-gba.gba",
+    "gameId": "ninjasack-gba",
+    "title": "Ninjasack",
+    "genre": "Luta",
+    "cover": "ninjasack-gba.png",
+    "tags": [
+      "ninja",
+      "luta",
+      "combate",
+      "katana",
+      "shuriken",
+      "hordas"
+    ]
+  },
+  "vilq-md": {
+    "core": "segaMD",
+    "gameUrl": "/roms/vilq-md.bin",
+    "gameId": "vilq-md",
+    "title": "VilQ Adventure",
+    "genre": "Plataforma",
+    "cover": "vilq-md.png",
+    "featured": true,
+    "tags": [
+      "corrida",
+      "velocidade",
+      "plataforma",
+      "pulos",
+      "floresta",
+      "mascote",
+      "aventura",
+      "animais"
+    ]
+  },
+  "oldtowers-md": {
+    "core": "segaMD",
+    "gameUrl": "/roms/oldtowers-md.bin",
+    "gameId": "oldtowers-md",
+    "title": "Old Towers",
+    "genre": "Puzzle / Ação",
+    "cover": "oldtowers-md.png",
+    "tags": [
+      "torre",
+      "masmorra",
+      "puzzle",
+      "labirinto",
+      "ação",
+      "medieval"
+    ]
+  },
+  "dragonscastle-md": {
+    "core": "segaMD",
+    "gameUrl": "/roms/dragonscastle-md.bin",
+    "gameId": "dragonscastle-md",
+    "title": "Dragon's Castle",
+    "genre": "Ação-aventura",
+    "cover": "dragonscastle-md.png",
+    "tags": [
+      "dragão",
+      "castelo",
+      "bruxa",
+      "magia",
+      "fantasia",
+      "batalha"
+    ]
+  },
+  "gravitypig-md": {
+    "core": "segaMD",
+    "gameUrl": "/roms/gravitypig-md.bin",
+    "gameId": "gravitypig-md",
+    "title": "Gravity Pig",
+    "genre": "Plataforma",
+    "cover": "gravitypig-md.png",
+    "tags": [
+      "gravidade",
+      "porco",
+      "animais",
+      "plataforma",
+      "física",
+      "pulos"
+    ]
+  },
+  "xump2-md": {
+    "core": "segaMD",
+    "gameUrl": "/roms/xump2-md.bin",
+    "gameId": "xump2-md",
+    "title": "Xump 2",
+    "genre": "Puzzle",
+    "cover": "xump2-md.png",
+    "tags": [
+      "puzzle",
+      "raciocínio",
+      "blocos",
+      "fases"
+    ]
+  },
+  "griels-md": {
+    "core": "segaMD",
+    "gameUrl": "/roms/griels-md.bin",
+    "gameId": "griels-md",
+    "title": "Griel's Quest",
+    "genre": "Ação-aventura",
+    "cover": "griels-md.png",
+    "tags": [
+      "cálice",
+      "busca",
+      "medieval",
+      "fantasia",
+      "aventura",
+      "batalha"
+    ]
+  },
+  "papicommando-md": {
+    "core": "segaMD",
+    "gameUrl": "/roms/papicommando-md.bin",
+    "gameId": "papicommando-md",
+    "title": "Papi Commando Remix",
+    "genre": "Ação / Tiro",
+    "cover": "papicommando-md.png",
+    "tags": [
+      "guerra",
+      "soldado",
+      "militar",
+      "tiro",
+      "exército",
+      "combate"
     ]
   }
 }
