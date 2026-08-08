@@ -10,34 +10,49 @@ html, body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
-/* ---------- index (lista de chaveiros) ---------- */
+/* ---------- index (tela inicial) ---------- */
 
 .index-body {
   min-height: 100vh;
+  background:
+    radial-gradient(600px 300px at 50% -10%, rgba(139, 92, 246, 0.18), transparent),
+    #0b0b12;
 }
 
 .index-wrap {
   max-width: 480px;
   margin: 0 auto;
-  padding: 32px 20px 60px;
+  padding: 48px 20px 48px;
 }
 
-.index-wrap h1 {
-  font-size: 1.5rem;
-  margin-bottom: 8px;
+.hero {
+  text-align: center;
+  padding-bottom: 32px;
 }
 
-.subtitle {
+.hero-badge {
+  font-size: 2.5rem;
+  line-height: 1;
+  margin-bottom: 14px;
+}
+
+.hero h1 {
+  font-size: 1.85rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin: 0 0 10px;
+  background: linear-gradient(135deg, #d8d4ff 10%, #7fe9dd 90%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.hero-tagline {
   color: #a3a3b8;
-  font-size: 0.9rem;
-  line-height: 1.4;
-  margin-bottom: 24px;
-}
-
-.subtitle code {
-  background: #1c1c28;
-  padding: 1px 5px;
-  border-radius: 4px;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  max-width: 340px;
+  margin: 0 auto;
 }
 
 .card-grid {
@@ -48,42 +63,117 @@ html, body {
 
 .card {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  background: #17171f;
-  border: 1px solid #2a2a3a;
-  border-radius: 14px;
-  padding: 16px 18px;
+  align-items: center;
+  gap: 14px;
+  background: #14141c;
+  border: 1px solid #24242f;
+  border-radius: 18px;
+  padding: 12px;
   text-decoration: none;
   color: inherit;
-  transition: transform 0.1s ease, border-color 0.1s ease;
+  transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
 }
 
 .card:active {
-  transform: scale(0.98);
-  border-color: #5b5bd6;
+  transform: scale(0.97);
 }
 
-.card-core {
+@media (hover: hover) {
+  .card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 10px 28px -16px var(--accent);
+  }
+}
+
+.card-cover {
+  flex: 0 0 64px;
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.9rem;
+  background: linear-gradient(135deg, var(--cover-from), var(--cover-to));
+  position: relative;
+  overflow: hidden;
+}
+
+.card-cover::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.08) 0 2px, transparent 2px 4px);
+  mix-blend-mode: overlay;
+}
+
+.card-cover-glyph {
+  position: relative;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35));
+}
+
+.card-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.card-console-tag {
   align-self: flex-start;
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  background: #2c2c5c;
-  color: #b9b9ff;
-  padding: 2px 8px;
-  border-radius: 999px;
+  letter-spacing: 0.07em;
+  font-weight: 700;
+  color: var(--accent);
 }
 
 .card-title {
-  font-size: 1.05rem;
+  font-size: 1.02rem;
   font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-cta {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.8rem;
+  color: #8f8fa8;
+}
+
+.card-cta svg {
+  width: 14px;
+  height: 14px;
+}
+
+.card:active .card-cta {
+  color: var(--accent);
 }
 
 .card-keyid {
-  font-size: 0.75rem;
-  color: #6f6f85;
+  margin-top: 2px;
+  font-size: 0.65rem;
+  color: #52525f;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.index-footer {
+  text-align: center;
+  margin-top: 36px;
+  color: #52525f;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.subtitle {
+  color: #a3a3b8;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  margin-bottom: 24px;
 }
 
 .known-list {
@@ -148,4 +238,21 @@ html, body {
 
 .load-badge--fade {
   opacity: 0.35;
+}
+
+/* Gira a tela pra paisagem quando o jogo começa, em celulares ainda em pé.
+   O navegador só deixa travar a orientação de verdade com um toque do
+   usuário (fullscreen exige gesto); como o jogo inicia sozinho, esse truque
+   de CSS gira visualmente o conteúdo pra caber na tela deitada mesmo assim. */
+@media screen and (orientation: portrait) and (max-width: 900px) {
+  html.force-landscape .player-body {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vh;
+    height: 100vw;
+    transform-origin: top left;
+    transform: rotate(90deg) translateY(-100%);
+    overflow: hidden;
+  }
 }

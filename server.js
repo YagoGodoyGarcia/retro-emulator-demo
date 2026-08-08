@@ -41,20 +41,38 @@ function escapeJs(str) {
   return JSON.stringify(String(str));
 }
 
+// Estilo visual por core, só pra deixar os cards da tela inicial mais convidativos
+const CORE_STYLE = {
+  nes: { glyph: "👾", from: "#8b5cf6", to: "#2e1065", accent: "#c4b5fd" },
+  snes: { glyph: "🎮", from: "#14b8a6", to: "#0f3d38", accent: "#5eead4" },
+};
+const DEFAULT_CORE_STYLE = { glyph: "🕹️", from: "#64748b", to: "#1e293b", accent: "#cbd5e1" };
+
 app.use(express.static(path.join(__dirname, "public")));
 
-// GET / — index de teste: lista os "chaveiros" mockados
+// GET / — tela inicial: lista os "chaveiros" mockados
 app.get("/", (req, res) => {
   const keychains = loadKeychains();
 
   const cards = Object.entries(keychains)
-    .map(([keyId, cfg]) => `
-      <a class="card" href="/play/${encodeURIComponent(keyId)}">
-        <span class="card-core">${escapeHtml(cfg.core)}</span>
-        <span class="card-title">${escapeHtml(cfg.title)}</span>
-        <span class="card-keyid">keyId: ${escapeHtml(keyId)}</span>
+    .map(([keyId, cfg]) => {
+      const style = CORE_STYLE[cfg.core] || DEFAULT_CORE_STYLE;
+      return `
+      <a class="card" href="/play/${encodeURIComponent(keyId)}" style="--accent:${style.accent};--cover-from:${style.from};--cover-to:${style.to}">
+        <div class="card-cover" aria-hidden="true">
+          <span class="card-cover-glyph">${style.glyph}</span>
+        </div>
+        <div class="card-body">
+          <span class="card-console-tag">${escapeHtml(cfg.core)}</span>
+          <span class="card-title">${escapeHtml(cfg.title)}</span>
+          <span class="card-cta">Jogar agora
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+          </span>
+          <span class="card-keyid">keyId: ${escapeHtml(keyId)}</span>
+        </div>
       </a>
-    `)
+    `;
+    })
     .join("\n");
 
   res.send(`<!DOCTYPE html>
@@ -62,19 +80,24 @@ app.get("/", (req, res) => {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Retro Emulator Demo — Chaveiros Mockados</title>
+  <title>Chaveiros Retro</title>
   <link rel="stylesheet" href="/css/style.css" />
 </head>
 <body class="index-body">
   <main class="index-wrap">
-    <h1>Chaveiros mockados</h1>
-    <p class="subtitle">
-      Cada card simula a leitura de um chaveiro NFC. Na versão final, o NFC
-      redireciona direto pra <code>/play/&lt;keyId&gt;</code> — aqui é só clicar.
-    </p>
+    <header class="hero">
+      <div class="hero-badge">🕹️</div>
+      <h1>Chaveiros Retro</h1>
+      <p class="hero-tagline">Encosta o chaveiro no leitor e o jogo abre na hora — com o seu progresso salvo automaticamente.</p>
+    </header>
+
     <div class="card-grid">
       ${cards}
     </div>
+
+    <footer class="index-footer">
+      Demo · em breve isso acontece sozinho ao aproximar o chaveiro do leitor NFC.
+    </footer>
   </main>
 </body>
 </html>`);
@@ -147,6 +170,17 @@ app.get("/play/:keyId", (req, res) => {
         badge.textContent = "carregado em " + seconds + "s";
         console.log("[retro-demo] jogo iniciado em " + seconds + "s, keyId=" + ${escapeJs(keyId)});
         setTimeout(function () { badge.classList.add("load-badge--fade"); }, 2500);
+
+        // Gira a tela pra paisagem no celular assim que o jogo começa.
+        // CSS cuida do giro visual (garante mesmo sem gesto do usuário); isso aqui
+        // é só uma tentativa extra de girar o dispositivo de verdade quando o
+        // navegador permitir.
+        document.documentElement.classList.add("force-landscape");
+        try {
+          if (screen.orientation && screen.orientation.lock) {
+            screen.orientation.lock("landscape").catch(function () {});
+          }
+        } catch (e) {}
       };
 
       window.EJS_onSaveState = function () {
