@@ -468,6 +468,24 @@ html, body {
   box-shadow: 0 12px 30px -10px rgba(139, 92, 246, 0.7);
 }
 
+.play-gate-btn:disabled {
+  padding-left: 0;
+  animation: play-gate-spin 1s linear infinite;
+}
+
+@keyframes play-gate-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* O botão real do EmulatorJS (.ejs_start_button) fica escondido — a gente
+   repassa o clique do nosso play-gate pra ele via JS, então ele nunca
+   precisa aparecer na tela. */
+.ejs_start_button {
+  display: none !important;
+}
+
 .play-gate-title {
   font-size: 1.05rem;
   font-weight: 600;

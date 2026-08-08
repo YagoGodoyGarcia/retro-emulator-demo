@@ -50,6 +50,48 @@ const CORE_STYLE = {
 };
 const DEFAULT_CORE_STYLE = { label: "?", glyph: "🕹️", from: "#64748b", to: "#1e293b", accent: "#cbd5e1" };
 
+// Layout do controle virtual por core — igual ao padrão do próprio
+// EmulatorJS (mesmos input_value/posições), só tirando os botões de
+// "Fast"/"Slow" (avanço/redução de velocidade) que ele empilha em cima de
+// Start/Select por padrão em todo core. A gente não precisa disso pra essa
+// demo e só ocupa tela/atrapalha o toque.
+const VIRTUAL_GAMEPAD = {
+  nes: [
+    { type: "button", text: "B", id: "b", location: "right", right: 75, top: 70, bold: true, input_value: 0 },
+    { type: "button", text: "A", id: "a", location: "right", right: 5, top: 70, bold: true, input_value: 8 },
+    { type: "dpad", id: "dpad", location: "left", left: "50%", right: "50%", joystickInput: false, inputValues: [4, 5, 6, 7] },
+    { type: "button", text: "Start", id: "start", location: "center", left: 60, fontSize: 15, block: true, input_value: 3 },
+    { type: "button", text: "Select", id: "select", location: "center", left: -5, fontSize: 15, block: true, input_value: 2 },
+  ],
+  snes: [
+    { type: "button", text: "X", id: "x", location: "right", left: 40, bold: true, input_value: 9 },
+    { type: "button", text: "Y", id: "y", location: "right", top: 40, bold: true, input_value: 1 },
+    { type: "button", text: "A", id: "a", location: "right", left: 81, top: 40, bold: true, input_value: 8 },
+    { type: "button", text: "B", id: "b", location: "right", left: 40, top: 80, bold: true, input_value: 0 },
+    { type: "dpad", id: "dpad", location: "left", left: "50%", top: "50%", joystickInput: false, inputValues: [4, 5, 6, 7] },
+    { type: "button", text: "Start", id: "start", location: "center", left: 60, fontSize: 15, block: true, input_value: 3 },
+    { type: "button", text: "Select", id: "select", location: "center", left: -5, fontSize: 15, block: true, input_value: 2 },
+    { type: "button", text: "L", id: "l", location: "left", left: 3, top: -100, bold: true, block: true, input_value: 10 },
+    { type: "button", text: "R", id: "r", location: "right", right: 3, top: -100, bold: true, block: true, input_value: 11 },
+  ],
+  gba: [
+    { type: "button", text: "B", id: "b", location: "right", left: 10, top: 70, bold: true, input_value: 0 },
+    { type: "button", text: "A", id: "a", location: "right", left: 81, top: 40, bold: true, input_value: 8 },
+    { type: "dpad", id: "dpad", location: "left", left: "50%", top: "50%", joystickInput: false, inputValues: [4, 5, 6, 7] },
+    { type: "button", text: "Start", id: "start", location: "center", left: 60, fontSize: 15, block: true, input_value: 3 },
+    { type: "button", text: "Select", id: "select", location: "center", left: -5, fontSize: 15, block: true, input_value: 2 },
+    { type: "button", text: "L", id: "l", location: "left", left: 3, top: -90, bold: true, block: true, input_value: 10 },
+    { type: "button", text: "R", id: "r", location: "right", right: 3, top: -90, bold: true, block: true, input_value: 11 },
+  ],
+  segaMD: [
+    { type: "button", text: "A", id: "a", location: "right", right: 145, top: 70, bold: true, input_value: 1 },
+    { type: "button", text: "B", id: "b", location: "right", right: 75, top: 70, bold: true, input_value: 0 },
+    { type: "button", text: "C", id: "c", location: "right", right: 5, top: 70, bold: true, input_value: 8 },
+    { type: "dpad", id: "dpad", location: "left", left: "50%", right: "50%", joystickInput: false, inputValues: [4, 5, 6, 7] },
+    { type: "button", text: "Start", id: "start", location: "center", left: 60, fontSize: 15, block: true, input_value: 3 },
+  ],
+};
+
 // iOS (Safari e qualquer outro navegador lá, todos rodam em cima da WebKit)
 // não deixa esconder a barra de endereço/abas de uma aba normal — só quando
 // a página é aberta a partir de um ícone salvo na Tela de Início. Essas tags
@@ -353,6 +395,7 @@ app.get("/play/:keyId", (req, res) => {
   const { keyId } = req.params;
   const keychains = loadKeychains();
   const cfg = keychains[keyId];
+  const padLayout = cfg && VIRTUAL_GAMEPAD[cfg.core];
 
   if (!cfg) {
     const known = Object.keys(keychains).map((k) => `<li><a href="/play/${encodeURIComponent(k)}">${escapeHtml(k)}</a></li>`).join("");
@@ -385,7 +428,7 @@ app.get("/play/:keyId", (req, res) => {
   <link rel="stylesheet" href="/css/style.css" />${PWA_HEAD}
 </head>
 <body class="player-body">
-  <div id="load-badge" class="load-badge">carregando core + rom...</div>
+  <div id="load-badge" class="load-badge" hidden></div>
   <a href="/" class="back-btn" aria-label="Voltar">&larr;</a>
   <div id="game" class="game-container"></div>
 
@@ -401,7 +444,7 @@ app.get("/play/:keyId", (req, res) => {
 
   <script>
     (function () {
-      var loadStartedAt = performance.now();
+      var loadStartedAt = null;
       var badge = document.getElementById("load-badge");
 
       window.EJS_player = "#game";
@@ -411,14 +454,18 @@ app.get("/play/:keyId", (req, res) => {
       // Identificador do jogo, usado pelo EmulatorJS pra separar o save state de cada jogo no IndexedDB do navegador
       window.EJS_gameID = ${escapeJs(keyId)};
       window.EJS_gameName = ${escapeJs(cfg.title)};
-      window.EJS_startOnLoaded = true;
       window.EJS_backgroundColor = "#000000";
+      ${padLayout ? `window.EJS_VirtualGamepadSettings = ${JSON.stringify(padLayout)};` : ""}
+
+      // De propósito SEM EJS_startOnLoaded aqui — ver o porquê no listener
+      // de clique do play-gate logo abaixo.
 
       window.EJS_onGameStart = function () {
         var seconds = ((performance.now() - loadStartedAt) / 1000).toFixed(1);
         badge.textContent = "carregado em " + seconds + "s";
         console.log("[retro-demo] jogo iniciado em " + seconds + "s, id=" + ${escapeJs(keyId)});
         setTimeout(function () { badge.classList.add("load-badge--fade"); }, 2500);
+        dismissGate();
       };
 
       window.EJS_onSaveState = function () {
@@ -429,7 +476,7 @@ app.get("/play/:keyId", (req, res) => {
         console.log("[retro-demo] save state carregado para id=" + ${escapeJs(keyId)});
       };
 
-      // Tela cheia real, giro pra paisagem e som exigem um toque do usuário
+      // Tela cheia real, giro pra paisagem e áudio exigem um toque do usuário
       // pra funcionar nos navegadores mobile — não rola disparar isso sozinho
       // no load. Esse botão é justamente esse toque.
       //
@@ -444,12 +491,13 @@ app.get("/play/:keyId", (req, res) => {
       // girou. O próprio EmulatorJS recalcula a posição dos controles virtuais
       // com base no tamanho real da janela — se a gente gira só visualmente
       // via CSS, ele continua achando que tá em pé e posiciona os botões pro
-      // lugar errado (foi exatamente o que quebrou o layout). Só o giro de
-      // verdade (screen.orientation.lock, ou a pessoa girando o aparelho) faz
-      // o EmulatorJS enxergar landscape de verdade e desenhar certo.
+      // lugar errado. Só o giro de verdade (screen.orientation.lock, ou a
+      // pessoa girando o aparelho) faz o EmulatorJS enxergar landscape de
+      // verdade e desenhar certo.
       var canFullscreen = !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
       var isStandalone = window.navigator.standalone === true || window.matchMedia("(display-mode: standalone)").matches;
       var hint = document.getElementById("play-gate-hint");
+      var gateBtn = document.getElementById("play-gate-btn");
       if (canFullscreen && !isStandalone) {
         hint.textContent = "Toque para jogar em tela cheia";
       }
@@ -459,6 +507,32 @@ app.get("/play/:keyId", (req, res) => {
         gate.classList.add("play-gate--hidden");
         setTimeout(function () { gate.remove(); }, 300);
       }
+
+      // O EmulatorJS só baixa o core/ROM quando o próprio botão dele
+      // ("Start Game") recebe um clique de verdade — é assim que ele garante
+      // que o áudio tem permissão do navegador pra tocar sem travar depois.
+      // Se a gente usasse EJS_startOnLoaded (clique falso, disparado sozinho
+      // no load) o carregamento começava sem essa permissão, e o EmulatorJS
+      // ficava preso pedindo um SEGUNDO toque ("Click to resume Emulator")
+      // pra liberar o áudio — foi exatamente esse o bug. Em vez disso, a
+      // gente deixa o botão dele escondido (.ejs_start_button no CSS) e
+      // repassa pra ele o mesmo clique de verdade que o usuário deu no nosso
+      // play-gate, então tudo acontece dentro do mesmo gesto e o áudio nunca
+      // fica suspenso.
+      function triggerRealStart(attempt) {
+        var realBtn = document.querySelector(".ejs_start_button");
+        if (realBtn) {
+          realBtn.click();
+          return;
+        }
+        attempt = attempt || 0;
+        if (attempt > 100) {
+          console.warn("[retro-demo] botão de start do EmulatorJS não apareceu a tempo");
+          return;
+        }
+        setTimeout(function () { triggerRealStart(attempt + 1); }, 100);
+      }
+
       gate.addEventListener("click", function () {
         var el = document.documentElement;
         var request = canFullscreen
@@ -474,7 +548,18 @@ app.get("/play/:keyId", (req, res) => {
         if ("wakeLock" in navigator) {
           navigator.wakeLock.request("screen").catch(function () {});
         }
-        dismissGate();
+
+        // troca o botão por um estado de "carregando" em vez de sumir na
+        // hora — some de verdade só quando o jogo realmente começar
+        // (EJS_onGameStart), pra não deixar tela preta no meio do caminho
+        gateBtn.textContent = "⏳";
+        gateBtn.disabled = true;
+        hint.textContent = "Carregando...";
+        badge.hidden = false;
+        badge.textContent = "carregando core + rom...";
+        loadStartedAt = performance.now();
+
+        triggerRealStart();
       }, { once: true });
     })();
   </script>

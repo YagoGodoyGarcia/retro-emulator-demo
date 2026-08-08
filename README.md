@@ -149,14 +149,28 @@ de carregamento (core WASM + ROM) até o jogo começar a rodar
 (`EJS_onGameStart`), e loga no console quando um save state é salvo/carregado
 (`EJS_onSaveState` / `EJS_onLoadState`) — usa isso pra validar.
 
-## Tela cheia e paisagem no mobile
+## Um toque só — sem o "Click to resume Emulator"
 
-O core carrega sozinho em background assim que a página abre
-(`EJS_startOnLoaded = true`), mas **tela cheia real, giro pra paisagem e
-áudio dependem de um toque do usuário** — é restrição do navegador, não dá
-pra disparar isso sozinho no load. Por isso o `/play/:keyId` mostra um botão
-"Toque para jogar em tela cheia" por cima do jogo (que já tá rodando por
-baixo); um toque nesse botão:
+O `/play/:keyId` **não** usa `EJS_startOnLoaded`. Isso é de propósito: esse
+flag faz o EmulatorJS simular um clique sozinho assim que a página carrega,
+sem gesto real do usuário — e o navegador (principalmente Safari/iOS) só
+libera áudio quando o `AudioContext` é criado dentro de um clique de verdade.
+Com o clique falso, o áudio nascia suspenso, e o próprio EmulatorJS detectava
+isso e mostrava um popup extra ("Click to resume Emulator", às vezes com o
+título aparecendo como "undefined") pedindo um SEGUNDO toque pra liberar o
+som — exatamente o bug de "preciso clicar duas vezes" que apareceu no teste.
+
+Como corrigi: o botão nativo do EmulatorJS (`.ejs_start_button`) fica
+escondido via CSS, e o nosso próprio botão "Toque para jogar" repassa o
+clique real pra ele (`realBtn.click()`, chamado de dentro do mesmo gesto do
+usuário) assim que a pessoa toca. Como o download do core/ROM só começa
+depois desse clique de verdade, o `AudioContext` nasce dentro da janela de
+permissão do navegador e nunca fica suspenso — um toque só, sem popup
+nenhum no meio. Enquanto carrega, o botão vira um spinner (⏳) e some de
+verdade só quando o jogo realmente começa (`EJS_onGameStart`), sem deixar
+tela preta no meio do caminho.
+
+Esse mesmo toque também:
 
 1. Pede tela cheia de verdade (`requestFullscreen`), escondendo a barra de
    endereço/abas do navegador.
@@ -167,6 +181,17 @@ Além disso, `touch-action`/`overscroll-behavior`/`user-select` ficam
 desligados na página do player, pra evitar puxar a página (pull-to-refresh),
 voltar por swipe, ou abrir o menu de copiar/segurar do iOS sem querer
 enquanto o polegar tá em cima dos controles virtuais.
+
+### Controle virtual sem excesso de botão
+
+Por padrão o EmulatorJS empilha botões de avanço/redução de velocidade
+("Fast"/"Slow", aparecia como "Rápido"/"Lento" traduzido) em cima de
+Start/Select em **todo** core — foi o que causava aquela sobreposição
+estranha de botões na tela. `VIRTUAL_GAMEPAD` em `server.js` define o layout
+por core (`nes`/`snes`/`gba`/`segaMD`) igual ao padrão oficial do
+EmulatorJS — mesmos `input_value`/posições, só sem esses dois botões extras
+— via `EJS_VirtualGamepadSettings`. Resultado: só D-pad + os botões que o
+console realmente tem, sem sobra ocupando a tela.
 
 **Nada de girar só visualmente por CSS** (isso já foi tentado e removido): o
 próprio EmulatorJS recalcula a posição dos botões virtuais com base no
