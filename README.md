@@ -101,15 +101,24 @@ baixo); um toque nesse botão:
 
 1. Pede tela cheia de verdade (`requestFullscreen`), escondendo a barra de
    endereço/abas do navegador.
-2. Trava a orientação em paisagem (`screen.orientation.lock`), com fallback
-   via CSS (rotação visual) pros navegadores que não deixam travar a
-   orientação de verdade.
+2. Trava a orientação em paisagem de verdade (`screen.orientation.lock`).
 3. Segura a tela ligada (`navigator.wakeLock`), pra não apagar no meio do jogo.
 
 Além disso, `touch-action`/`overscroll-behavior`/`user-select` ficam
 desligados na página do player, pra evitar puxar a página (pull-to-refresh),
 voltar por swipe, ou abrir o menu de copiar/segurar do iOS sem querer
 enquanto o polegar tá em cima dos controles virtuais.
+
+**Nada de girar só visualmente por CSS** (isso já foi tentado e removido): o
+próprio EmulatorJS recalcula a posição dos botões virtuais com base no
+tamanho real da janela (`window.innerWidth/innerHeight`), então um giro
+"fake" só na aparência deixa esses botões espalhados no lugar errado — o
+EmulatorJS continua achando que a tela tá em pé. Só o giro de verdade (via
+`screen.orientation.lock`, ou a própria pessoa girando o aparelho) faz ele
+desenhar certo. Quando não dá pra travar a orientação (iOS, ver abaixo), o
+player mostra um aviso discreto "🔄 Gire o celular pra jogar em paisagem"
+que some sozinho assim que a tela realmente vira (`@media (orientation:
+landscape)` — nenhum JS envolvido em esconder o aviso).
 
 ### iOS (Safari, Chrome, qualquer um) não deixa esconder a barra do navegador
 
@@ -128,13 +137,19 @@ isso:
   "tela cheia" quando o navegador realmente suporta (Android/Chrome
   desktop) — no iOS ele só diz "Toque para jogar", sem prometer o que não
   pode entregar.
-- O giro pra paisagem (`screen.orientation.lock`) também não é suportado em
-  iOS; quem carrega essa parte lá é só o fallback via CSS, que já funciona
-  independente disso.
+- `screen.orientation.lock` também não é suportado em iOS fora do modo
+  standalone; quem já tá com o app salvo na Tela de Início consegue travar a
+  orientação normalmente. Quem não travou vê o aviso "gire o celular"
+  (acima) e joga em pé mesmo — funciona, só não é o ideal pra um jogo
+  desenhado pra paisagem.
 
 Resumindo: no Android e desktop o botão já esconde a UI do navegador sozinho.
 No iPhone, o caminho é a pessoa salvar o link na Tela de Início uma vez — daí
-abre sempre em tela cheia de verdade.
+abre sempre em tela cheia de verdade. **Não existe nenhuma API de navegador
+que deixe um site disparar o "Adicionar à Tela de Início" sozinho, em
+nenhuma plataforma** — é decisão de design da Apple (e também do Chrome/
+Android) pra evitar spam de instalação; o máximo que dá pra fazer é deixar a
+instrução bem clara, que é o que o aviso na tela inicial faz.
 
 ## Checklist de validação
 

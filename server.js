@@ -61,6 +61,10 @@ const PWA_HEAD = `
   <meta name="apple-mobile-web-app-title" content="Joga Retrô" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />`;
 
+// Ícone de "compartilhar" da própria Apple (quadrado com seta pra cima),
+// só pra deixar a instrução do Adicionar à Tela de Início mais reconhecível.
+const SHARE_ICON_SVG = `<svg class="inline-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M8 7l4-4 4 4"/><rect x="4" y="11" width="16" height="10" rx="2"/></svg>`;
+
 app.use(express.static(path.join(__dirname, "public")));
 
 // GET / — tela inicial: lista os jogos disponíveis
@@ -108,8 +112,12 @@ app.get("/", (req, res) => {
     </div>
 
     <div id="ios-hint" class="ios-hint" hidden>
-      <span>📲 No iPhone, pra jogar sem a barra do navegador: toque em <strong>Compartilhar</strong> → <strong>Adicionar à Tela de Início</strong>.</span>
-      <button type="button" id="ios-hint-close" class="ios-hint-close" aria-label="Fechar dica">&times;</button>
+      <div class="ios-hint-icon">📲</div>
+      <div class="ios-hint-body">
+        <strong>Jogar em tela cheia no iPhone</strong>
+        <span>O iOS não deixa nenhum site esconder a barra do navegador sozinho — só funciona quando você mesmo salva o atalho. Toque em <strong>Compartilhar</strong> ${SHARE_ICON_SVG} → <strong>Adicionar à Tela de Início</strong>, e abra sempre por esse ícone.</span>
+        <button type="button" id="ios-hint-close" class="ios-hint-dismiss">Entendi</button>
+      </div>
     </div>
   </main>
 
@@ -187,6 +195,8 @@ app.get("/play/:keyId", (req, res) => {
     </div>
   </div>
 
+  <div id="rotate-hint" class="rotate-hint">🔄 Gire o celular pra jogar em paisagem</div>
+
   <script>
     (function () {
       var loadStartedAt = performance.now();
@@ -227,6 +237,14 @@ app.get("/play/:keyId", (req, res) => {
       // ícone salvo na Tela de Início (ver dica na tela inicial). Por isso o
       // texto do botão só promete "tela cheia" quando o navegador realmente
       // suporta.
+      //
+      // IMPORTANTE: aqui NÃO tem nenhum truque de CSS "fingindo" que a tela
+      // girou. O próprio EmulatorJS recalcula a posição dos controles virtuais
+      // com base no tamanho real da janela — se a gente gira só visualmente
+      // via CSS, ele continua achando que tá em pé e posiciona os botões pro
+      // lugar errado (foi exatamente o que quebrou o layout). Só o giro de
+      // verdade (screen.orientation.lock, ou a pessoa girando o aparelho) faz
+      // o EmulatorJS enxergar landscape de verdade e desenhar certo.
       var canFullscreen = !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
       var isStandalone = window.navigator.standalone === true || window.matchMedia("(display-mode: standalone)").matches;
       var hint = document.getElementById("play-gate-hint");
@@ -245,7 +263,6 @@ app.get("/play/:keyId", (req, res) => {
           ? ((el.requestFullscreen && el.requestFullscreen()) || (el.webkitRequestFullscreen && el.webkitRequestFullscreen()))
           : null;
         Promise.resolve(request).catch(function () {}).then(function () {
-          document.documentElement.classList.add("force-landscape");
           try {
             if (screen.orientation && screen.orientation.lock) {
               screen.orientation.lock("landscape").catch(function () {});
