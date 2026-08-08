@@ -84,6 +84,11 @@ O que foi feito pra reduzir o tempo entre abrir o site e estar jogando:
    A segunda visita é praticamente instantânea.
 3. **Cache HTTP longo** nos assets imutáveis (`/covers`, `/roms`, `/icons`:
    1 ano, `immutable`). HTML fica de fora pro catálogo nunca ficar velho.
+   Esses headers estão em **`vercel.json`**, não no Express: em produção a
+   Vercel serve `public/` direto pelo CDN dela e o `express.static` nem é
+   chamado, então configurar só no servidor não teria efeito nenhum lá (foi
+   conferido no deploy — vinha `max-age=0`). O `setHeaders` do Express
+   continua no código pro `npm start` local se comportar igual.
 4. **`preconnect`** pro CDN do EmulatorJS já no `<head>`, pra DNS e TLS não
    entrarem no caminho crítico depois.
 5. As 4 primeiras capas usam `fetchpriority="high"`; o resto é `lazy`.

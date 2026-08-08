@@ -1,5 +1,25 @@
 {
   "rewrites": [
     { "source": "/(.*)", "destination": "/api/index" }
+  ],
+  "headers": [
+    {
+      "source": "/(covers|roms|icons)/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "source": "/(css|js)/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=3600, must-revalidate" }
+      ]
+    },
+    {
+      "source": "/sw.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache" }
+      ]
+    }
   ]
 }
