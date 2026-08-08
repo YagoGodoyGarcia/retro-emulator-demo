@@ -43,10 +43,11 @@ function escapeJs(str) {
 
 // Estilo visual por core, só pra deixar os cards da tela inicial mais convidativos
 const CORE_STYLE = {
-  nes: { glyph: "👾", from: "#8b5cf6", to: "#2e1065", accent: "#c4b5fd" },
-  snes: { glyph: "🎮", from: "#14b8a6", to: "#0f3d38", accent: "#5eead4" },
+  nes: { label: "NES", glyph: "👾", from: "#8b5cf6", to: "#2e1065", accent: "#c4b5fd" },
+  snes: { label: "SNES", glyph: "🎮", from: "#14b8a6", to: "#0f3d38", accent: "#5eead4" },
+  gba: { label: "GBA", glyph: "⚔️", from: "#f59e0b", to: "#7c2d12", accent: "#fcd34d" },
 };
-const DEFAULT_CORE_STYLE = { glyph: "🕹️", from: "#64748b", to: "#1e293b", accent: "#cbd5e1" };
+const DEFAULT_CORE_STYLE = { label: "?", glyph: "🕹️", from: "#64748b", to: "#1e293b", accent: "#cbd5e1" };
 
 // iOS (Safari e qualquer outro navegador lá, todos rodam em cima da WebKit)
 // não deixa esconder a barra de endereço/abas de uma aba normal — só quando
@@ -67,20 +68,34 @@ const SHARE_ICON_SVG = `<svg class="inline-icon" viewBox="0 0 24 24" fill="none"
 
 app.use(express.static(path.join(__dirname, "public")));
 
-// GET / — tela inicial: lista os jogos disponíveis
+// GET / — tela inicial: lista os jogos disponíveis, com busca e filtro por console
 app.get("/", (req, res) => {
   const keychains = loadKeychains();
+  const entries = Object.entries(keychains);
 
-  const cards = Object.entries(keychains)
+  const coresPresent = [...new Set(entries.map(([, cfg]) => cfg.core))];
+  const chips = ["all", ...coresPresent]
+    .map((core) => {
+      const label = core === "all" ? "Todos" : (CORE_STYLE[core] || DEFAULT_CORE_STYLE).label;
+      const active = core === "all" ? " chip--active" : "";
+      return `<button type="button" class="chip${active}" data-filter="${escapeHtml(core)}">${escapeHtml(label)}</button>`;
+    })
+    .join("\n");
+
+  const cards = entries
     .map(([keyId, cfg]) => {
       const style = CORE_STYLE[cfg.core] || DEFAULT_CORE_STYLE;
+      const genre = cfg.genre || "";
       return `
-      <a class="card" href="/play/${encodeURIComponent(keyId)}" style="--accent:${style.accent};--cover-from:${style.from};--cover-to:${style.to}">
+      <a class="card" href="/play/${encodeURIComponent(keyId)}" data-core="${escapeHtml(cfg.core)}" data-title="${escapeHtml(cfg.title.toLowerCase())}" data-genre="${escapeHtml(genre.toLowerCase())}" style="--accent:${style.accent};--cover-from:${style.from};--cover-to:${style.to}">
         <div class="card-cover" aria-hidden="true">
           <span class="card-cover-glyph">${style.glyph}</span>
         </div>
         <div class="card-body">
-          <span class="card-console-tag">${escapeHtml(cfg.core)}</span>
+          <div class="card-tags">
+            <span class="card-console-tag">${escapeHtml(style.label)}</span>
+            ${genre ? `<span class="card-genre-tag">${escapeHtml(genre)}</span>` : ""}
+          </div>
           <span class="card-title">${escapeHtml(cfg.title)}</span>
           <span class="card-cta">Jogar agora
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
@@ -107,9 +122,21 @@ app.get("/", (req, res) => {
       <p class="hero-tagline">Escolhe um jogo e começa a jogar na hora — seu progresso fica salvo automaticamente.</p>
     </header>
 
-    <div class="card-grid">
+    <div class="library-controls">
+      <div class="search-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input type="search" id="search-input" placeholder="Buscar jogo ou gênero..." autocomplete="off" />
+      </div>
+      <div class="chip-row" id="chip-row">
+        ${chips}
+      </div>
+    </div>
+
+    <div class="card-grid" id="card-grid">
       ${cards}
     </div>
+
+    <p id="empty-state" class="empty-state" hidden>Nenhum jogo encontrado. Tenta outra busca ou filtro.</p>
 
     <div id="ios-hint" class="ios-hint" hidden>
       <div class="ios-hint-icon">📲</div>
@@ -134,6 +161,40 @@ app.get("/", (req, res) => {
           localStorage.setItem("retro-demo-ios-hint-dismissed", "1");
         });
       }
+    })();
+
+    // Busca + filtro por console, tudo client-side (a lista é pequena, não
+    // precisa de round-trip nenhum pro servidor pra isso ficar instantâneo).
+    (function () {
+      var searchInput = document.getElementById("search-input");
+      var chips = document.querySelectorAll(".chip");
+      var cards = document.querySelectorAll("#card-grid .card");
+      var emptyState = document.getElementById("empty-state");
+      var activeFilter = "all";
+
+      function applyFilters() {
+        var query = searchInput.value.trim().toLowerCase();
+        var visibleCount = 0;
+        cards.forEach(function (card) {
+          var matchesCore = activeFilter === "all" || card.dataset.core === activeFilter;
+          var haystack = card.dataset.title + " " + card.dataset.genre;
+          var matchesQuery = query === "" || haystack.indexOf(query) !== -1;
+          var visible = matchesCore && matchesQuery;
+          card.hidden = !visible;
+          if (visible) visibleCount++;
+        });
+        emptyState.hidden = visibleCount !== 0;
+      }
+
+      searchInput.addEventListener("input", applyFilters);
+      chips.forEach(function (chip) {
+        chip.addEventListener("click", function () {
+          chips.forEach(function (c) { c.classList.remove("chip--active"); });
+          chip.classList.add("chip--active");
+          activeFilter = chip.dataset.filter;
+          applyFilters();
+        });
+      });
     })();
   </script>
 </body>

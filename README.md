@@ -27,7 +27,7 @@ Abre em `http://localhost:3000`.
 - `GET /play/:keyId` — tela cheia do EmulatorJS já configurado pro jogo daquele `keyId`. Se o `keyId` não existir em `config/keychains.json`, mostra 404 com a lista dos chaveiros válidos.
 - `GET /api/keychains` — JSON com o mapeamento `keyId -> config`, útil pra debug.
 
-## Chaveiros mockados
+## Biblioteca de jogos
 
 Mapeamento em `config/keychains.json`. Cada entrada:
 
@@ -37,33 +37,48 @@ Mapeamento em `config/keychains.json`. Cada entrada:
     "core": "nes",
     "gameUrl": "/roms/flappybird.nes",
     "gameId": "flappybird-nes",
-    "title": "Flappy Bird (NES Homebrew)"
+    "title": "Flappy Bird",
+    "genre": "Reflexo"
   }
 }
 ```
 
-Vieram 3 chaveiros de exemplo, em 2 cores diferentes (`nes` e `snes`), pra
-provar que a troca de core funciona:
+10 jogos, em 3 cores (`nes`, `snes`, `gba`) — dá pra buscar por nome/gênero e
+filtrar por console direto na tela inicial:
 
-| keyId            | core | jogo                          |
-|-------------------|------|-------------------------------|
-| `flappybird-nes`  | nes  | Flappy Bird (homebrew)        |
-| `invaders-nes`    | nes  | Invaders (homebrew)           |
-| `rockfall-snes`   | snes | Rockfall (homebrew)           |
+| id                    | core | jogo                | gênero          |
+|-----------------------|------|---------------------|------------------|
+| `flappybird-nes`      | nes  | Flappy Bird         | Reflexo          |
+| `invaders-nes`        | nes  | Invaders            | Nave / Tiro      |
+| `cheril-nes`          | nes  | Cheril the Goddess  | Plataforma       |
+| `driar-nes`           | nes  | Driar               | Ação-aventura    |
+| `bootee-nes`          | nes  | Bootee              | Plataforma       |
+| `assimilate-nes`      | nes  | Assimilate          | Metroidvania     |
+| `rockfall-snes`       | snes | Rockfall            | Puzzle / Ação    |
+| `nwarp-snes`          | snes | N-Warp Daisakusen   | Nave / Tiro      |
+| `anguna-gba`          | gba  | Anguna              | Ação-aventura    |
+| `metalwarrior4-gba`   | gba  | Metal Warrior 4     | Ação-RPG         |
 
-### Sobre as ROMs
+### Sobre as ROMs (e por que não tem Mario/Sonic)
 
-Nada de ROM comercial da Nintendo aqui. As 3 ROMs são homebrew de domínio
-livre, originalmente do repositório
-[`retrobrews/nes-games`](https://github.com/retrobrews/nes-games) e
-[`retrobrews/snes-games`](https://github.com/retrobrews/snes-games) (o mesmo
-projeto retrobrews citado no briefing), e ficam versionadas em
-`public/roms/` — servidas same-origin pelo próprio app (evita depender de
-CORS/disponibilidade de um CDN de terceiros pra ROM carregar).
+Nada de ROM comercial aqui — nem Nintendo, nem Sega, nem ninguém. Mario e
+Sonic são propriedade da Nintendo/Sega; eu não baixo, hospedo nem linko ROM
+pirateada desses jogos, então não incluí. O que fiz em troca: escolhi os 10
+melhores jogos **homebrew** (feitos por fãs, de graça, para redistribuição)
+que dão a mesma vibe retrô — plataforma, ação-aventura estilo Zelda,
+nave/tiro, RPG de ação — em vez de clones ou ROM hacks disfarçados.
 
-Os `keyId` (`flappybird-nes`, etc.) são só rótulos mockados do "chaveiro
-lido" — troque por `mario-nes`, `sonic-genesis` ou o que fizer sentido pro
-seu teste, já que o mapeamento é 100% definido em `config/keychains.json`.
+Todas vêm do [`retrobrews`](https://github.com/retrobrews) (mesmo projeto
+citado no briefing original), ficam versionadas em `public/roms/` e são
+servidas same-origin pelo próprio app (evita depender de CORS/disponibilidade
+de CDN de terceiro pra ROM carregar). Se você tiver uma ROM própria (dump
+legal de um cartucho seu, por exemplo) e quiser trocar alguma entrada por
+ela, é só apontar o `gameUrl` — ver seção abaixo.
+
+Os `id` (`flappybird-nes`, etc.) são só chaves internas — troque por
+`mario-nes`, `sonic-genesis` ou o que fizer sentido quando o NFC entrar
+(mock disso, ver "Fora de escopo"), já que o mapeamento é 100% definido em
+`config/keychains.json`.
 
 ### Trocar a ROM sem mexer em código
 

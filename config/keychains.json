@@ -1,21 +1,73 @@
 {
-  "_comment": "keyId -> config do jogo. keyId simula 'qual chaveiro foi lido' pelo NFC (isso vem depois). gameUrl aponta pra /roms (servido same-origin pelo próprio app) — troque pelo caminho/URL de outra ROM sem mexer em código.",
+  "_comment": "id -> config do jogo. gameUrl aponta pra /roms (servido same-origin pelo próprio app) — troque pelo caminho/URL de outra ROM sem mexer em código.",
   "flappybird-nes": {
     "core": "nes",
     "gameUrl": "/roms/flappybird.nes",
     "gameId": "flappybird-nes",
-    "title": "Flappy Bird (NES Homebrew)"
+    "title": "Flappy Bird",
+    "genre": "Reflexo"
   },
   "invaders-nes": {
     "core": "nes",
     "gameUrl": "/roms/invaders.nes",
     "gameId": "invaders-nes",
-    "title": "Invaders (NES Homebrew)"
+    "title": "Invaders",
+    "genre": "Nave / Tiro"
+  },
+  "cheril-nes": {
+    "core": "nes",
+    "gameUrl": "/roms/cheril-the-goddess.nes",
+    "gameId": "cheril-nes",
+    "title": "Cheril the Goddess",
+    "genre": "Plataforma"
+  },
+  "driar-nes": {
+    "core": "nes",
+    "gameUrl": "/roms/driar.nes",
+    "gameId": "driar-nes",
+    "title": "Driar",
+    "genre": "Ação-aventura"
+  },
+  "bootee-nes": {
+    "core": "nes",
+    "gameUrl": "/roms/bootee.nes",
+    "gameId": "bootee-nes",
+    "title": "Bootee",
+    "genre": "Plataforma"
+  },
+  "assimilate-nes": {
+    "core": "nes",
+    "gameUrl": "/roms/assimilate.nes",
+    "gameId": "assimilate-nes",
+    "title": "Assimilate",
+    "genre": "Metroidvania"
   },
   "rockfall-snes": {
     "core": "snes",
     "gameUrl": "/roms/rockfall.smc",
     "gameId": "rockfall-snes",
-    "title": "Rockfall (SNES Homebrew)"
+    "title": "Rockfall",
+    "genre": "Puzzle / Ação"
+  },
+  "nwarp-snes": {
+    "core": "snes",
+    "gameUrl": "/roms/nwarpdaisakusen.smc",
+    "gameId": "nwarp-snes",
+    "title": "N-Warp Daisakusen",
+    "genre": "Nave / Tiro"
+  },
+  "anguna-gba": {
+    "core": "gba",
+    "gameUrl": "/roms/anguna.gba",
+    "gameId": "anguna-gba",
+    "title": "Anguna",
+    "genre": "Ação-aventura"
+  },
+  "metalwarrior4-gba": {
+    "core": "gba",
+    "gameUrl": "/roms/metalwarrior4.gba",
+    "gameId": "metalwarrior4-gba",
+    "title": "Metal Warrior 4",
+    "genre": "Ação-RPG"
   }
 }

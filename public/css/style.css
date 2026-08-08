@@ -20,7 +20,7 @@ html, body {
 }
 
 .index-wrap {
-  max-width: 480px;
+  max-width: 720px;
   margin: 0 auto;
   padding: 48px 20px 48px;
 }
@@ -55,10 +55,90 @@ html, body {
   margin: 0 auto;
 }
 
-.card-grid {
+.library-controls {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: #0b0b12;
+  padding: 10px 0 16px;
+  margin: -10px 0 4px;
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #14141c;
+  border: 1px solid #24242f;
+  border-radius: 14px;
+  padding: 12px 14px;
+  color: #6f6f85;
+}
+
+.search-box svg {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+}
+
+.search-box input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  outline: none;
+  color: #f2f2f7;
+  font-size: 0.95rem;
+  font-family: inherit;
+}
+
+.search-box input::placeholder {
+  color: #6f6f85;
+}
+
+.chip-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.chip-row::-webkit-scrollbar {
+  display: none;
+}
+
+.chip {
+  flex: 0 0 auto;
+  border: 1px solid #24242f;
+  background: #14141c;
+  color: #a3a3b8;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 999px;
+}
+
+.chip--active {
+  background: #2c2c5c;
+  border-color: #5b5bd6;
+  color: #d8d4ff;
+}
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.empty-state {
+  text-align: center;
+  color: #6f6f85;
+  font-size: 0.9rem;
+  padding: 32px 0;
 }
 
 .card {
@@ -72,6 +152,13 @@ html, body {
   text-decoration: none;
   color: inherit;
   transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+/* display:flex acima ganha do [hidden] nativo do navegador (mesma
+   especificidade, mas author style vence a UA stylesheet) — sem isso o
+   filtro/busca escondia os cards só nos dados, não visualmente. */
+.card[hidden] {
+  display: none;
 }
 
 .card:active {
@@ -120,13 +207,26 @@ html, body {
   gap: 3px;
 }
 
+.card-tags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
 .card-console-tag {
-  align-self: flex-start;
   font-size: 0.65rem;
   text-transform: uppercase;
   letter-spacing: 0.07em;
   font-weight: 700;
   color: var(--accent);
+}
+
+.card-genre-tag {
+  font-size: 0.68rem;
+  color: #6f6f85;
+  padding-left: 6px;
+  border-left: 1px solid #33333f;
 }
 
 .card-title {
