@@ -32,3 +32,79 @@ test("CORE_EXTENSIONS bate com o mapeamento de plataformas", () => {
 test("buildGameUpdate exige título", () => {
   assert.throws(() => gameEntry.buildGameUpdate({ title: "  " }), gameEntry.ValidationError);
 });
+
+test("buildGameUpdate aceita status válido", () => {
+  const result = gameEntry.buildGameUpdate({ title: "Jogo", status: "published" });
+  assert.equal(result.status, "published");
+});
+
+test("buildGameUpdate recusa status inválido", () => {
+  assert.throws(
+    () => gameEntry.buildGameUpdate({ title: "Jogo", status: "publicadíssimo" }),
+    gameEntry.ValidationError
+  );
+});
+
+test("buildGameUpdate sem status não mexe no campo", () => {
+  const result = gameEntry.buildGameUpdate({ title: "Jogo" });
+  assert.equal("status" in result, false);
+});
+
+test("buildImportEntry aprova entrada completa e devolve id único", () => {
+  const existingIds = new Set(["mario-bros"]);
+  const { id, entry } = gameEntry.buildImportEntry(
+    {
+      title: "Mario Bros",
+      core: "nes",
+      genre: "Plataforma",
+      tags: "mario, classico",
+      confirmRights: "true",
+      gameUrl: "https://blob.example/roms/nes/mario-bros.nes",
+      romFilename: "mario-bros.nes",
+    },
+    existingIds
+  );
+  assert.equal(id, "mario-bros-2");
+  assert.equal(entry.core, "nes");
+  assert.equal(entry.title, "Mario Bros");
+  assert.deepEqual(entry.tags, ["mario", "classico"]);
+});
+
+test("buildImportEntry exige confirmação de direitos mesmo em lote", () => {
+  assert.throws(
+    () =>
+      gameEntry.buildImportEntry(
+        { title: "Jogo", core: "nes", gameUrl: "https://x/roms/nes/a.nes", romFilename: "a.nes" },
+        new Set()
+      ),
+    gameEntry.ValidationError
+  );
+});
+
+test("buildImportEntry recusa extensão que não combina com o console", () => {
+  assert.throws(
+    () =>
+      gameEntry.buildImportEntry(
+        {
+          title: "Jogo",
+          core: "nes",
+          confirmRights: "true",
+          gameUrl: "https://x/roms/nes/a.gba",
+          romFilename: "a.gba",
+        },
+        new Set()
+      ),
+    gameEntry.ValidationError
+  );
+});
+
+test("buildImportEntry exige gameUrl (rom já precisa estar no Blob)", () => {
+  assert.throws(
+    () =>
+      gameEntry.buildImportEntry(
+        { title: "Jogo", core: "nes", confirmRights: "true", romFilename: "a.nes" },
+        new Set()
+      ),
+    gameEntry.ValidationError
+  );
+});

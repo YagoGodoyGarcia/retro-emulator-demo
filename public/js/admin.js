@@ -181,13 +181,31 @@
               "</div></div>"
             );
           }
+          // Jogo cadastrado antes do conceito de status existir não tem o
+          // campo — trata como "published", mesmo default do normalizeGame
+          // no servidor, pra não aparecer um badge de "undefined" à toa.
+          var status = g.status || "published";
+          var needsReview = status !== "published";
+          var thumb = g.cover
+            ? '<img src="' + escapeHtml(g.cover) + '" alt="" loading="lazy" />'
+            : '<div class="game-thumb-empty">sem capa</div>';
+          var badge = needsReview ? '<span class="game-card-status">revisão</span>' : "";
+          var openBtn = needsReview
+            ? ""
+            : '<a class="btn--ghost" href="/play/' + encodeURIComponent(g.gameId) + '" target="_blank" rel="noopener">Abrir</a>';
+          var publishBtn = needsReview
+            ? '<button type="button" class="btn" data-publish-game="' + escapeHtml(g.gameId) + '"' +
+              (g.cover ? "" : " disabled title=\"Envie uma capa antes de publicar (Editar)\"") +
+              ">Publicar</button>"
+            : "";
           return (
             '<div class="game-card">' +
-            '<div class="game-thumb"><img src="' + escapeHtml(g.cover) + '" alt="" loading="lazy" /></div>' +
+            '<div class="game-thumb">' + thumb + badge + '</div>' +
             '<div class="game-card-title">' + escapeHtml(g.title) + "</div>" +
             '<div class="game-card-meta">' + escapeHtml(g.core) + (g.genre ? " · " + escapeHtml(g.genre) : "") + "</div>" +
             '<div class="game-card-actions">' +
-            '<a class="btn--ghost" href="/play/' + encodeURIComponent(g.gameId) + '" target="_blank" rel="noopener">Abrir</a>' +
+            openBtn +
+            publishBtn +
             '<button type="button" class="btn--ghost" data-edit-game="' + escapeHtml(g.gameId) + '">Editar</button>' +
             '<button type="button" class="btn--danger" data-delete-game="' + escapeHtml(g.gameId) + '">Apagar</button>' +
             "</div></div>"
@@ -290,6 +308,43 @@
     });
 
     gameList.addEventListener("click", function (e) {
+      var publishBtn = e.target.closest("[data-publish-game]");
+      if (publishBtn) {
+        var pid = publishBtn.dataset.publishGame;
+        var pgame = currentGames.filter(function (g) { return g.gameId === pid; })[0];
+        if (!pgame) return;
+        publishBtn.disabled = true;
+        publishBtn.textContent = "Publicando...";
+        // buildGameUpdate exige título — manda os campos atuais junto, só
+        // o status muda aqui.
+        var pbody = new FormData();
+        pbody.append("title", pgame.title);
+        pbody.append("genre", pgame.genre || "");
+        pbody.append("tags", (pgame.tags || []).join(", "));
+        pbody.append("status", "published");
+        fetch("/admin/api/games/" + encodeURIComponent(pid), {
+          method: "PATCH",
+          credentials: "same-origin",
+          body: pbody,
+        })
+          .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+          .then(function (res) {
+            if (!res.ok) {
+              alert((res.data && res.data.error) || "Falha ao publicar.");
+              publishBtn.disabled = false;
+              publishBtn.textContent = "Publicar";
+              return;
+            }
+            loadGames();
+          })
+          .catch(function () {
+            alert("Falha de rede. Tenta de novo.");
+            publishBtn.disabled = false;
+            publishBtn.textContent = "Publicar";
+          });
+        return;
+      }
+
       var editBtn = e.target.closest("[data-edit-game]");
       if (editBtn) {
         editingId = editBtn.dataset.editGame;

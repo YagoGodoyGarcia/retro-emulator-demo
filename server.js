@@ -180,7 +180,7 @@ async function requireAccess(req, res, next) {
 // ---------------------------------------------------------------------------
 
 app.get("/", requireAccess, async (req, res) => {
-  const allGames = await library.getAllGames();
+  const allGames = await library.getPublishedGames();
   // Os destaques abrem a vitrine — é o primeiro card que o usuário vê ao
   // chegar. O resto mantém a ordem do config.
   const entries = allGames
@@ -343,7 +343,7 @@ app.post("/api/heartbeat", async (req, res) => {
 });
 
 app.get("/api/keychains", async (req, res) => {
-  const games = await library.getAllGames();
+  const games = await library.getPublishedGames();
   res.json(Object.fromEntries(games.map((g) => [g.gameId, g])));
 });
 
@@ -353,7 +353,10 @@ app.get("/api/keychains", async (req, res) => {
 
 app.get("/play/:keyId", requireAccess, async (req, res) => {
   const { keyId } = req.params;
-  const games = await library.getAllGames();
+  // Só jogo publicado — um jogo importado em lote e ainda sem revisão
+  // (status "review") não deve ficar jogável por quem adivinhar/guardar a
+  // URL antes de alguém confirmar que está pronto.
+  const games = await library.getPublishedGames();
   const cfg = games.find((g) => g.gameId === keyId);
 
   if (!cfg) {
@@ -500,7 +503,10 @@ app.get("/admin", (req, res) => {
   <div class="admin-wrap">
     <div class="admin-head">
       <h1>MYDE ADMIN</h1>
-      <a href="/admin/logout">sair</a>
+      <div class="admin-head-links">
+        <a href="/admin/import">importar em lote</a>
+        <a href="/admin/logout">sair</a>
+      </div>
     </div>
 
     ${warnings.join("\n")}
@@ -561,6 +567,81 @@ app.get("/admin", (req, res) => {
     platforms.list().map((p) => ({ id: p.id, label: p.label, extensions: p.extensions }))
   )};</script>
   <script src="/js/admin.js" defer></script>
+</body>
+</html>`);
+});
+
+// ---------------------------------------------------------------------------
+// /admin/import — importação em lote (Fase 5). Arrasta/seleciona vários
+// arquivos de ROM; cada um vira um item numa fila com detecção de
+// plataforma, checagem de duplicata por hash e upload direto pro Blob
+// (POST /admin/api/blob/upload-token) sem passar pela function. Entra como
+// "review" — publicar continua manual (ver /admin), depois de conferir
+// título/capa de cada um.
+// ---------------------------------------------------------------------------
+
+app.get("/admin/import", (req, res) => {
+  if (!access.adminConfigured) return adminSetupPage(res);
+  if (!access.isAdmin(req)) return adminLoginPage(res);
+
+  res.send(`<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MYDE · importar em lote</title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <meta name="robots" content="noindex" />
+</head>
+<body class="admin-body">
+  <div class="admin-wrap">
+    <div class="admin-head">
+      <h1>Importar em lote</h1>
+      <div class="admin-head-links">
+        <a href="/admin">&larr; painel</a>
+      </div>
+    </div>
+
+    ${blob.durable
+      ? ""
+      : '<div class="banner banner--warn"><strong>Vercel Blob não configurado.</strong> ' +
+        "Importação em lote precisa de upload direto pro Blob — configure <code>BLOB_READ_WRITE_TOKEN</code> " +
+        'na Vercel (mesmo aviso do painel principal). Em dev local, use o formulário de upload único do <a href="/admin">/admin</a>.</div>'
+    }
+
+    <div class="panel">
+      <p class="panel-note">
+        Arraste vários arquivos de ROM aqui (ou selecione). Plataforma e título são sugeridos
+        automaticamente pelo nome do arquivo — confira antes de publicar. Cada jogo entra como
+        <strong>revisão</strong>: não aparece na vitrine até você anexar uma capa e publicar
+        manualmente em <a href="/admin">/admin</a>.
+      </p>
+      <label class="check-row">
+        <input type="checkbox" id="import-rights" />
+        <span>Confirmo que tenho o direito de distribuir publicamente todos os arquivos que vou selecionar agora (homebrew, domínio público, ou eu possuo os direitos de redistribuição).</span>
+      </label>
+      <div class="dropzone" id="dropzone" aria-disabled="${blob.durable ? "false" : "true"}">
+        <p>Arraste as ROMs aqui</p>
+        <p class="panel-note" style="margin:4px 0">ou</p>
+        <label class="btn btn--ghost" for="import-files" style="cursor:pointer">Selecionar arquivos</label>
+        <input type="file" id="import-files" multiple hidden ${blob.durable ? "" : "disabled"} />
+      </div>
+      <p class="form-error" id="import-error" hidden></p>
+    </div>
+
+    <div class="panel" id="import-summary" hidden>
+      <p id="import-counts" class="panel-note"></p>
+      <a class="btn" href="/admin">Anexar capa e publicar no painel &rarr;</a>
+    </div>
+
+    <div class="game-list" id="import-list"></div>
+  </div>
+  <script>
+    window.__PLATFORMS__ = ${jsonForScript(platforms.list().map((p) => ({ id: p.id, label: p.label, extensions: p.extensions })))};
+    window.__IMPORT_LIMITS__ = ${jsonForScript(blobUploadPolicy.ROM_SIZE_LIMITS)};
+    window.__BLOB_READY__ = ${blob.durable ? "true" : "false"};
+  </script>
+  <script type="module" src="/js/import.js"></script>
 </body>
 </html>`);
 });
@@ -772,7 +853,16 @@ app.post(
       const gameUrl = await blob.upload("roms", romFilename, files.rom.buffer, files.rom.mimetype);
       const cover = await blob.upload("covers", coverFilename, files.cover.buffer, files.cover.mimetype);
 
-      const game = { ...entry, gameUrl, cover, romFilename, coverFilename, romHash, addedAt: Date.now() };
+      const game = {
+        ...entry,
+        gameUrl,
+        cover,
+        romFilename,
+        coverFilename,
+        romHash,
+        status: "published", // esse fluxo sempre tem capa+arquivo completos, publica direto
+        addedAt: Date.now(),
+      };
       await libraryStore.put(game);
       res.json({ game });
     } catch (err) {
@@ -785,6 +875,70 @@ app.post(
   }
 );
 
+// Checagem de duplicata ANTES do upload (Fase 5, importação em lote) — o
+// navegador calcula o hash da ROM local (Web Crypto) e pergunta aqui antes
+// de gastar banda subindo pro Blob. Mesmo índice usado pelo upload único
+// (POST /admin/api/games), só que consultado sem exigir arquivo nenhum.
+app.post("/admin/api/games/check-hash", requireAdmin, async (req, res) => {
+  try {
+    const hash = String((req.body && req.body.hash) || "");
+    if (!/^[0-9a-f]{64}$/.test(hash)) {
+      return res.status(400).json({ error: "hash inválido — precisa ser sha-256 em hex." });
+    }
+    const existing = await libraryStore.findByHash(hash);
+    res.json({ duplicate: Boolean(existing), game: existing || null });
+  } catch (err) {
+    console.error("[import] falha ao checar hash:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Fecha o fluxo de importação em lote: a ROM já está no Blob (upload direto
+// do navegador, Fase 4) — aqui só valida e grava o metadado. Sempre entra
+// como "review", nunca publica sozinho.
+app.post("/admin/api/games/import-commit", requireAdmin, async (req, res) => {
+  if (!blob.durable) {
+    return res.status(503).json({
+      error: "Importação em lote precisa do Vercel Blob configurado (BLOB_READ_WRITE_TOKEN).",
+    });
+  }
+  try {
+    const staticIds = new Set((await library.getAllGames()).map((g) => g.gameId));
+    const { id, entry } = gameEntry.buildImportEntry(req.body, staticIds);
+
+    const romHash = String((req.body && req.body.romHash) || "");
+    if (romHash) {
+      const duplicate = await libraryStore.findByHash(romHash);
+      if (duplicate) {
+        return res.status(409).json({
+          error: `Esta ROM já está cadastrada como "${duplicate.title}".`,
+          duplicate: true,
+          game: duplicate,
+        });
+      }
+    }
+
+    const game = {
+      ...entry,
+      gameUrl: req.body.gameUrl,
+      cover: "",
+      romFilename: req.body.romFilename,
+      coverFilename: "",
+      romHash: romHash || null,
+      status: "review",
+      addedAt: Date.now(),
+    };
+    await libraryStore.put(game);
+    res.json({ game });
+  } catch (err) {
+    if (err instanceof gameEntry.ValidationError) {
+      return res.status(400).json({ error: err.message });
+    }
+    console.error("[import] falha ao commitar jogo:", err.message);
+    res.status(500).json({ error: "Falha ao salvar o jogo. Tenta de novo." });
+  }
+});
+
 app.patch(
   "/admin/api/games/:id",
   requireAdmin,
@@ -795,9 +949,19 @@ app.patch(
       if (!game) return res.status(404).json({ error: "não encontrado" });
 
       const newCoverFile = req.files && req.files.cover && req.files.cover[0];
-      const { title, genre, tags, coverExt } = gameEntry.buildGameUpdate(req.body, newCoverFile);
+      const { title, genre, tags, coverExt, status } = gameEntry.buildGameUpdate(req.body, newCoverFile);
 
       const updated = { ...game, title, genre, tags };
+      if (status) updated.status = status;
+
+      // Publicar exige capa — um jogo importado em lote (Fase 5) entra sem
+      // capa de propósito (seção 50 do briefing) e não pode ir pra vitrine
+      // assim, ficaria com imagem quebrada. `updated.cover` já reflete a
+      // capa existente; se uma nova vier nesta mesma requisição o upload
+      // roda logo abaixo antes de salvar.
+      if (updated.status === "published" && !updated.cover && !coverExt) {
+        throw new gameEntry.ValidationError("Não dá pra publicar sem capa — envie uma antes.");
+      }
 
       if (coverExt) {
         if (!blob.canUpload) {
