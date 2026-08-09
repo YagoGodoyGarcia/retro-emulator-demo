@@ -213,8 +213,19 @@
     (window.__PLATFORMS__ || []).forEach(function (p) {
       (p.extensions || []).forEach(function (ext) { EXT_TO_CORE[ext] = p.id; });
     });
+    // Sugere o título a partir do nome do arquivo (mesma ideia de
+    // lib/filename-normalizer.js: tira tag de região/revisão entre () ou
+    // []). Só preenche se o título ainda estiver vazio — nunca sobrescreve o
+    // que o admin já digitou.
+    function suggestTitle(filename) {
+      var noExt = filename.replace(/\.[^./\\]+$/, "");
+      var cleaned = noExt.replace(/\([^)]*\)/g, " ").replace(/\[[^\]]*\]/g, " ").replace(/\s+/g, " ").trim();
+      return cleaned || noExt.trim();
+    }
+
     var romInputEl = document.getElementById("game-rom");
     var coreSelect = document.getElementById("game-core");
+    var titleInput = document.getElementById("game-title");
     if (romInputEl && coreSelect) {
       romInputEl.addEventListener("change", function () {
         var file = romInputEl.files[0];
@@ -223,6 +234,7 @@
         var ext = dot === -1 ? "" : file.name.slice(dot).toLowerCase();
         var core = EXT_TO_CORE[ext];
         if (core) coreSelect.value = core;
+        if (titleInput && !titleInput.value.trim()) titleInput.value = suggestTitle(file.name);
       });
     }
 

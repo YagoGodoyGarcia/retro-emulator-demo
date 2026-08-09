@@ -11,6 +11,7 @@ const blob = require("./lib/blob");
 const gameEntry = require("./lib/game-entry");
 const library = require("./lib/library-service");
 const platforms = require("./lib/platforms");
+const romHashLib = require("./lib/rom-hash");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -711,10 +712,24 @@ app.post(
 
       const { romFilename, coverFilename, entry } = gameEntry.buildGameEntry(req.body, files, staticIds);
 
+      // Hash antes de subir pro Blob: se já existe um jogo com essa ROM
+      // exata (mesmo conteúdo, nome de arquivo pode ser outro), não gasta
+      // upload nem cria duplicata — nome + plataforma não é critério
+      // confiável o bastante sozinho (seções 16/54 do briefing).
+      const romHash = romHashLib.hashBuffer(files.rom.buffer);
+      const duplicate = await libraryStore.findByHash(romHash);
+      if (duplicate) {
+        return res.status(409).json({
+          error: `Esta ROM já está cadastrada como "${duplicate.title}".`,
+          duplicate: true,
+          game: duplicate,
+        });
+      }
+
       const gameUrl = await blob.upload("roms", romFilename, files.rom.buffer, files.rom.mimetype);
       const cover = await blob.upload("covers", coverFilename, files.cover.buffer, files.cover.mimetype);
 
-      const game = { ...entry, gameUrl, cover, romFilename, coverFilename, addedAt: Date.now() };
+      const game = { ...entry, gameUrl, cover, romFilename, coverFilename, romHash, addedAt: Date.now() };
       await libraryStore.put(game);
       res.json({ game });
     } catch (err) {
