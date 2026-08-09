@@ -89,9 +89,20 @@
     } catch (e) {}
   }
 
-  ["pointerdown", "touchstart", "touchend", "mousedown", "keydown"].forEach(function (evt) {
+  // Esses dois (listener de toque + observer) só têm razão de existir ANTES
+  // do jogo começar — é a única janela em que o popup pode aparecer. Manter
+  // rodando durante a partida custa trabalho de JS em cima de cada input
+  // (dpad, botões) e de cada atualização de tela do próprio emulador, à toa.
+  // Por isso saem de cena no EJS_onGameStart (ver silenceStartupWorkarounds
+  // mais abaixo) e são substituídos por um único listener de
+  // `visibilitychange`, que cobre o caso real que sobra depois de iniciado
+  // (o mobile suspende o AudioContext ao voltar de background).
+  var startupEvents = ["pointerdown", "touchstart", "touchend", "mousedown", "keydown"];
+  startupEvents.forEach(function (evt) {
     document.addEventListener(evt, resumeAudio, { capture: true, passive: true });
   });
+
+  var startupObserver = null;
 
   // Troca o checkStarted() do EmulatorJS por um que religa o áudio sozinho em
   // vez de abrir popup. "ready" dispara logo depois que o botão de start é
@@ -115,7 +126,7 @@
   // conteúdo, então no instante da inserção o texto ainda não está lá.
   if (window.MutationObserver) {
     var RESUME_TEXT = /resume Emulator|reprendre|reanudar|继续|다시 시작|відновити|devam/i;
-    new MutationObserver(function () {
+    startupObserver = new MutationObserver(function () {
       var popups = document.querySelectorAll(".ejs_popup_container");
       for (var i = 0; i < popups.length; i++) {
         if (popups[i].style.display === "none") continue;
@@ -123,7 +134,25 @@
         popups[i].style.display = "none";
         resumeAudio();
       }
-    }).observe(document.body, { childList: true, subtree: true, characterData: true });
+    });
+    startupObserver.observe(document.body, { childList: true, subtree: true, characterData: true });
+  }
+
+  // Desliga o listener por-toque e o observer de DOM inteiro assim que o jogo
+  // está de fato rodando, e troca por um único listener de visibilitychange
+  // — o áudio só volta a suspender sozinho quando a aba sai e volta de
+  // background, não a cada input do jogador.
+  function silenceStartupWorkarounds() {
+    startupEvents.forEach(function (evt) {
+      document.removeEventListener(evt, resumeAudio, { capture: true });
+    });
+    if (startupObserver) {
+      startupObserver.disconnect();
+      startupObserver = null;
+    }
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState === "visible") resumeAudio();
+    });
   }
 
   // ------------------------------------------------------------------
@@ -176,6 +205,7 @@
     }
     dismissGate();
     skipIntro();
+    silenceStartupWorkarounds();
   };
 
   window.EJS_onSaveState = function () {
