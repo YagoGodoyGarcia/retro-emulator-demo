@@ -114,13 +114,22 @@
   }
 
   // Esses dois (listener de toque + observer) só têm razão de existir ANTES
-  // do jogo começar — é a única janela em que o popup pode aparecer. Manter
-  // rodando durante a partida custa trabalho de JS em cima de cada input
-  // (dpad, botões) e de cada atualização de tela do próprio emulador, à toa.
-  // Por isso saem de cena no EJS_onGameStart (ver silenceStartupWorkarounds
-  // mais abaixo) e são substituídos por um único listener de
-  // `visibilitychange`, que cobre o caso real que sobra depois de iniciado
-  // (o mobile suspende o AudioContext ao voltar de background).
+  // do jogo começar de verdade — é a única janela em que o popup pode
+  // aparecer. Manter rodando pra sempre custa trabalho de JS em cima de
+  // cada input (dpad, botões) e de cada atualização de tela do próprio
+  // emulador, à toa. Por isso saem de cena mais tarde (ver
+  // silenceStartupWorkarounds mais abaixo) e são substituídos por um único
+  // listener de `visibilitychange`, que cobre o caso real que sobra depois
+  // de iniciado (o mobile suspende o AudioContext ao voltar de background).
+  //
+  // Cuidado que já causou bug de verdade: desligar isso NO INSTANTE do
+  // EJS_onGameStart parece certo (o jogo "já começou"), mas o próprio
+  // checkStarted() do EmulatorJS continua checando/reabrindo o popup por
+  // até 10s DEPOIS disso (40 tentativas × 250ms, ver EJS_ready abaixo) — se
+  // o popup aparecesse nessa janela sem o observer pra fechar sozinho, ele
+  // ficava preso na tela (tela cinza, só resolvia com F5 e tentar nascer o
+  // popup numa hora sem timing ruim). Por isso o desligamento espera bem
+  // mais que esses 10s antes de agir.
   var startupEvents = ["pointerdown", "touchstart", "touchend", "mousedown", "keydown"];
   startupEvents.forEach(function (evt) {
     document.addEventListener(evt, resumeAudio, { capture: true, passive: true });
@@ -229,7 +238,10 @@
     }
     dismissGate();
     skipIntro();
-    silenceStartupWorkarounds();
+    // 12s de folga sobre os até 10s que o checkStarted() do EmulatorJS ainda
+    // pode ficar de olho no popup depois do jogo já ter "começado" — ver o
+    // comentário longo lá em cima de startupEvents pra o bug que isso corrigiu.
+    setTimeout(silenceStartupWorkarounds, 12000);
   };
 
   window.EJS_onSaveState = function () {
