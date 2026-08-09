@@ -4,57 +4,19 @@ const express = require("express");
 const path = require("path");
 const multer = require("multer");
 const QRCode = require("qrcode");
-const keychainsConfig = require("./config/keychains.json");
 const store = require("./lib/store");
 const access = require("./lib/access");
 const libraryStore = require("./lib/library-store");
 const blob = require("./lib/blob");
 const gameEntry = require("./lib/game-entry");
+const library = require("./lib/library-service");
+const platforms = require("./lib/platforms");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // CDN pública do EmulatorJS. Pode ser trocada via env sem mexer em código.
 const EJS_CDN_URL = process.env.EMULATORJS_CDN_URL || "https://cdn.emulatorjs.org/stable/data/";
-
-// Qual arquivo de core o EmulatorJS baixa pra cada sistema (da lista oficial
-// dele, data/src/consts.js — ele usa o primeiro core de cada sistema). Serve
-// só pro pré-aquecimento na vitrine.
-const CORE_FILE = {
-  nes: "fceumm",
-  snes: "snes9x",
-  gba: "mgba",
-  segaMD: "genesis_plus_gx",
-};
-
-// O catálogo estático (config/keychains.json, versionado no repo) mais o que
-// o admin subiu depois (lib/library-store.js — dinâmico, porque escrever no
-// JSON em produção não é possível: filesystem só-leitura na Vercel).
-async function loadKeychains() {
-  const parsed = { ...keychainsConfig };
-  delete parsed._comment;
-
-  const keychains = {};
-  for (const [keyId, cfg] of Object.entries(parsed)) {
-    // Override por env var, ex: GAMEURL_FLAPPYBIRD_NES=https://.../outra.nes
-    const envKey = `GAMEURL_${keyId.toUpperCase().replace(/[^A-Z0-9]/g, "_")}`;
-    keychains[keyId] = {
-      ...cfg,
-      gameId: cfg.gameId || keyId,
-      gameUrl: process.env[envKey] || cfg.gameUrl,
-    };
-  }
-
-  let uploaded = [];
-  try {
-    uploaded = await libraryStore.list();
-  } catch (err) {
-    console.error("[library] falha ao listar jogos do admin:", err.message);
-  }
-  for (const cfg of uploaded) keychains[cfg.gameId] = cfg;
-
-  return keychains;
-}
 
 // cover pode ser um nome de arquivo local ("jogo.png", vira /covers/jogo.png)
 // ou uma URL completa (Vercel Blob, upload do admin em produção) — essa é
@@ -78,14 +40,6 @@ function escapeHtml(str) {
 function jsonForScript(value) {
   return JSON.stringify(value).replace(/</g, "\\u003c");
 }
-
-const CORE_STYLE = {
-  nes: { label: "NES", from: "#8b5cf6", to: "#2e1065", accent: "#c4b5fd" },
-  snes: { label: "SNES", from: "#14b8a6", to: "#0f3d38", accent: "#5eead4" },
-  gba: { label: "GBA", from: "#f59e0b", to: "#7c2d12", accent: "#fcd34d" },
-  segaMD: { label: "MEGA DRIVE", from: "#3b82f6", to: "#1e1b4b", accent: "#93c5fd" },
-};
-const DEFAULT_CORE_STYLE = { label: "RETRO", from: "#64748b", to: "#1e293b", accent: "#cbd5e1" };
 
 const VIRTUAL_GAMEPAD = require("./lib/gamepad");
 
@@ -223,33 +177,33 @@ async function requireAccess(req, res, next) {
 // ---------------------------------------------------------------------------
 
 app.get("/", requireAccess, async (req, res) => {
-  const keychains = await loadKeychains();
+  const allGames = await library.getAllGames();
   // Os destaques abrem a vitrine — é o primeiro card que o usuário vê ao
   // chegar. O resto mantém a ordem do config.
-  const entries = Object.entries(keychains).sort(
-    ([, a], [, b]) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0)
-  );
+  const entries = allGames
+    .slice()
+    .sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0));
 
-  const coresPresent = [...new Set(entries.map(([, cfg]) => cfg.core))];
+  const coresPresent = [...new Set(entries.map((cfg) => cfg.core))];
   const chips = ["all", ...coresPresent]
     .map((core) => {
-      const label = core === "all" ? "Todos" : (CORE_STYLE[core] || DEFAULT_CORE_STYLE).label;
+      const label = core === "all" ? "Todos" : platforms.styleOf(core).label;
       const isActive = core === "all";
       return `<button type="button" class="chip${isActive ? " chip--active" : ""}" data-filter="${escapeHtml(core)}" aria-pressed="${isActive}">${escapeHtml(label)}</button>`;
     })
     .join("\n");
 
   const tiles = entries
-    .map(([keyId, cfg], i) => {
-      const style = CORE_STYLE[cfg.core] || DEFAULT_CORE_STYLE;
+    .map((cfg, i) => {
+      const style = platforms.styleOf(cfg.core);
       const genre = cfg.genre || "";
-      const coreFile = CORE_FILE[cfg.core];
+      const coreFile = platforms.coreFileOf(cfg.core);
       const coreUrl = coreFile ? `${EJS_CDN_URL}cores/${coreFile}-wasm.data` : "";
       const badge = cfg.featured
         ? '<span class="tile-badge">Exclusivo MYDE</span>'
         : "";
       return `<button type="button" class="tile${cfg.featured ? " tile--featured" : ""}"
-        data-href="/play/${encodeURIComponent(keyId)}"
+        data-href="/play/${encodeURIComponent(cfg.gameId)}"
         data-featured="${cfg.featured ? "1" : ""}"
         data-core="${escapeHtml(cfg.core)}"
         data-title="${escapeHtml(cfg.title)}"
@@ -386,7 +340,8 @@ app.post("/api/heartbeat", async (req, res) => {
 });
 
 app.get("/api/keychains", async (req, res) => {
-  res.json(await loadKeychains());
+  const games = await library.getAllGames();
+  res.json(Object.fromEntries(games.map((g) => [g.gameId, g])));
 });
 
 // ---------------------------------------------------------------------------
@@ -395,12 +350,12 @@ app.get("/api/keychains", async (req, res) => {
 
 app.get("/play/:keyId", requireAccess, async (req, res) => {
   const { keyId } = req.params;
-  const keychains = await loadKeychains();
-  const cfg = keychains[keyId];
+  const games = await library.getAllGames();
+  const cfg = games.find((g) => g.gameId === keyId);
 
   if (!cfg) {
-    const known = Object.keys(keychains)
-      .map((k) => `<li><a href="/play/${encodeURIComponent(k)}">${escapeHtml(k)}</a></li>`)
+    const known = games
+      .map((g) => `<li><a href="/play/${encodeURIComponent(g.gameId)}">${escapeHtml(g.gameId)}</a></li>`)
       .join("");
     return systemPage(res, 404, {
       icon: "🕹️",
@@ -574,7 +529,7 @@ app.get("/admin", (req, res) => {
         <div class="field-row">
           <select class="field" id="game-core" name="core" required ${blob.canUpload ? "" : "disabled"}>
             <option value="" disabled selected>Console</option>
-            ${gameEntry.CORES.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml((CORE_STYLE[c] || DEFAULT_CORE_STYLE).label)}</option>`).join("")}
+            ${platforms.list().map((p) => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.label)}</option>`).join("")}
           </select>
           <input class="field" id="game-tags" name="tags" type="text" placeholder="Temas, separados por vírgula (ex: espaço, guerra)" ${blob.canUpload ? "" : "disabled"} />
         </div>
@@ -599,6 +554,9 @@ app.get("/admin", (req, res) => {
 
     <div class="game-list" id="game-list"></div>
   </div>
+  <script>window.__PLATFORMS__ = ${jsonForScript(
+    platforms.list().map((p) => ({ id: p.id, label: p.label, extensions: p.extensions }))
+  )};</script>
   <script src="/js/admin.js" defer></script>
 </body>
 </html>`);
@@ -749,9 +707,7 @@ app.post(
       };
 
       // Todo id em uso, estático ou já subido antes, pra não colidir.
-      const staticIds = new Set(Object.keys(keychainsConfig).filter((k) => k !== "_comment"));
-      const uploadedGames = await libraryStore.list();
-      uploadedGames.forEach((g) => staticIds.add(g.gameId));
+      const staticIds = new Set((await library.getAllGames()).map((g) => g.gameId));
 
       const { romFilename, coverFilename, entry } = gameEntry.buildGameEntry(req.body, files, staticIds);
 

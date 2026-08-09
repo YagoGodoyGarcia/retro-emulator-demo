@@ -205,19 +205,14 @@
         });
     }
 
-    // Pré-seleciona o console pela extensão do arquivo escolhido — mesmo
-    // mapeamento que o servidor usa pra validar (lib/game-entry.js
-    // CORE_EXTENSIONS). Só ajuda a acertar de primeira; a validação de
-    // verdade continua sendo a do servidor.
-    var EXT_TO_CORE = {
-      ".nes": "nes",
-      ".sfc": "snes",
-      ".smc": "snes",
-      ".gba": "gba",
-      ".bin": "segaMD",
-      ".md": "segaMD",
-      ".gen": "segaMD",
-    };
+    // Pré-seleciona o console pela extensão do arquivo escolhido — usa
+    // window.__PLATFORMS__ (injetado pelo servidor a partir de
+    // lib/platforms.js, a mesma fonte que valida no backend) em vez de um
+    // mapa fixo aqui, pra não virar mais um lugar que desalinha sozinho.
+    var EXT_TO_CORE = {};
+    (window.__PLATFORMS__ || []).forEach(function (p) {
+      (p.extensions || []).forEach(function (ext) { EXT_TO_CORE[ext] = p.id; });
+    });
     var romInputEl = document.getElementById("game-rom");
     var coreSelect = document.getElementById("game-core");
     if (romInputEl && coreSelect) {
