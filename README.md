@@ -366,6 +366,22 @@ Se você tiver licença ou um dump legal de um cartucho seu, é uma linha no
 `config/keychains.json` (`gameUrl` + `featured: true`) e ele vira o exclusivo
 da vitrine sem tocar em código.
 
+**Slots já preparados pra isso:** `mario-classic-nes` (`core: nes`) e
+`sonic-classic-md` (`core: segaMD`) já existem em `config/keychains.json` com
+`gameUrl` apontando pra `/roms/mario-classic.nes` e `/roms/sonic-classic.bin`
+— arquivos que **não estão no repo**. Pra ativar um deles:
+
+1. Coloque a ROM que você possui legalmente em `public/roms/` com esse nome
+   exato (ou ajuste o `gameUrl` da entrada pro nome que preferir).
+2. Coloque a capa correspondente em `public/covers/` (`mario-classic-nes.png`
+   / `sonic-classic-md.png`).
+3. Opcional: adicione `"featured": true` na entrada pra ela virar o exclusivo
+   da vitrine.
+
+Sem o arquivo da ROM, o card aparece na vitrine mas o jogo não abre (capa
+quebrada, 404 ao tentar jogar) — é só o slot reservado, não um jogo
+funcional.
+
 Todas vêm do [`retrobrews`](https://github.com/retrobrews) (mesmo projeto
 citado no briefing original), ficam versionadas em `public/roms/` e são
 servidas same-origin pelo próprio app (evita depender de CORS/disponibilidade

@@ -815,5 +815,40 @@
       "exército",
       "combate"
     ]
+  },
+  "mario-classic-nes": {
+    "_comment": "Placeholder: coloque sua ROM legalmente adquirida em public/roms/mario-classic.nes e a capa em public/covers/mario-classic-nes.png. Ver README > Adicionando ROMs próprias.",
+    "core": "nes",
+    "gameUrl": "/roms/mario-classic.nes",
+    "gameId": "mario-classic-nes",
+    "title": "Mario Classic",
+    "genre": "Plataforma",
+    "cover": "mario-classic-nes.png",
+    "tags": [
+      "plataforma",
+      "canos",
+      "cogumelos",
+      "clássico",
+      "mascote",
+      "pulos",
+      "moedas"
+    ]
+  },
+  "sonic-classic-md": {
+    "_comment": "Placeholder: coloque sua ROM legalmente adquirida em public/roms/sonic-classic.bin e a capa em public/covers/sonic-classic-md.png. Ver README > Adicionando ROMs próprias.",
+    "core": "segaMD",
+    "gameUrl": "/roms/sonic-classic.bin",
+    "gameId": "sonic-classic-md",
+    "title": "Sonic Classic",
+    "genre": "Corrida / Plataforma",
+    "cover": "sonic-classic-md.png",
+    "tags": [
+      "corrida",
+      "velocidade",
+      "plataforma",
+      "mascote",
+      "clássico",
+      "anéis"
+    ]
   }
 }
