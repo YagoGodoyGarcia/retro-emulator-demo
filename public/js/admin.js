@@ -205,6 +205,32 @@
         });
     }
 
+    // Pré-seleciona o console pela extensão do arquivo escolhido — mesmo
+    // mapeamento que o servidor usa pra validar (lib/game-entry.js
+    // CORE_EXTENSIONS). Só ajuda a acertar de primeira; a validação de
+    // verdade continua sendo a do servidor.
+    var EXT_TO_CORE = {
+      ".nes": "nes",
+      ".sfc": "snes",
+      ".smc": "snes",
+      ".gba": "gba",
+      ".bin": "segaMD",
+      ".md": "segaMD",
+      ".gen": "segaMD",
+    };
+    var romInputEl = document.getElementById("game-rom");
+    var coreSelect = document.getElementById("game-core");
+    if (romInputEl && coreSelect) {
+      romInputEl.addEventListener("change", function () {
+        var file = romInputEl.files[0];
+        if (!file) return;
+        var dot = file.name.lastIndexOf(".");
+        var ext = dot === -1 ? "" : file.name.slice(dot).toLowerCase();
+        var core = EXT_TO_CORE[ext];
+        if (core) coreSelect.value = core;
+      });
+    }
+
     gameForm.addEventListener("submit", function (e) {
       e.preventDefault();
       gameError.hidden = true;
