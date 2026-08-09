@@ -32,7 +32,8 @@ Abre em `http://localhost:3000`.
 Arquivos que importam: `server.js` (rotas + HTML), `lib/access.js` (cookies,
 vínculo, sessão), `lib/store.js` (onde os links ficam), `public/js/library.js`
 (vitrine), `public/js/player.js` (player), `public/js/admin.js` (painel),
-`public/sw.js` (cache/PWA), `config/keychains.json` (catálogo).
+`lib/gamepad.js` (layout do controle virtual), `public/sw.js` (cache/PWA),
+`config/keychains.json` (catálogo).
 
 ## Acesso por link exclusivo
 
@@ -403,32 +404,76 @@ de carregamento (core WASM + ROM) até o jogo começar a rodar
 (`EJS_onGameStart`), e loga no console quando um save state é salvo/carregado
 (`EJS_onSaveState` / `EJS_onLoadState`) — usa isso pra validar.
 
-## Um toque só — sem o "Click to resume Emulator"
+## Um toque só — matando o "Click to resume Emulator"
 
-O player **não** usa `EJS_startOnLoaded`. Esse flag faz o EmulatorJS simular
-um clique sozinho no load, sem gesto real do usuário — e aí o `AudioContext`
-nasce suspenso, o próprio EmulatorJS detecta isso e abre um popup pedindo um
-SEGUNDO toque ("Click to resume Emulator", às vezes com o título aparecendo
-como "undefined").
+Esse popup (título "undefined", texto "Click to resume Emulator") é do próprio
+EmulatorJS. A primeira tentativa de conserto — tirar o `EJS_startOnLoaded` e
+repassar um clique de verdade pro `.ejs_start_button` — **não resolveu**, e o
+código-fonte explica por quê.
 
-Em vez disso: o botão nativo dele (`.ejs_start_button`) fica escondido no CSS
-e o nosso play-gate repassa o clique de verdade (`realBtn.click()`, chamado
-de dentro do mesmo gesto). O download do core/ROM só começa depois desse
-clique real, então o áudio nasce liberado e não tem popup nenhum no meio.
+No `data/src/emulator.js` existe o `checkStarted()`, chamado só no Safari com
+toque. Ele fica num laço olhando se o `AudioContext` está `suspended` e,
+enquanto estiver, mostra aquele botão. Detalhe: **o botão não tem handler
+nenhum**. Ele é só um pretexto pra arrancar do usuário um gesto que destrave
+o áudio; quando o contexto sai de `suspended`, o laço fecha o popup sozinho.
 
-Enquanto carrega, o botão vira spinner e aparece uma barra de progresso; o
-gate só some quando o jogo realmente começa (`EJS_onGameStart`), pra não
-deixar tela preta no caminho. Esse mesmo toque também pede tela cheia
-(`requestFullscreen`), trava a orientação em paisagem
-(`screen.orientation.lock`) e segura a tela ligada (`navigator.wakeLock`).
+E o contexto nasce suspenso mesmo com o nosso gate porque **o gesto acontece
+no toque, mas o `AudioContext` só é criado lá na frente**, depois do download
+do core e da ROM. Nessa altura a janela do gesto já fechou — não existe jeito
+de um clique "segurar" o gesto por 10 segundos de download.
 
-### Controle virtual sem excesso de botão
+A solução foi parar de depender daquele toque. Em `public/js/player.js`:
 
-Por padrão o EmulatorJS empilha botões de velocidade ("Fast"/"Slow") em cima
-de Start/Select em **todo** core. `VIRTUAL_GAMEPAD` em `server.js` define o
-layout por core (`nes`/`snes`/`gba`/`segaMD`) igual ao padrão oficial —
-mesmos `input_value` e posições — só sem esses dois. Sobra D-pad + os botões
-que o console realmente tem.
+1. **Todo `AudioContext` da página é registrado.** `window.AudioContext` (e o
+   `webkitAudioContext`) são embrulhados antes do loader do EmulatorJS
+   carregar, então todo contexto criado — inclusive o do Emscripten — cai
+   numa lista.
+2. **Qualquer toque religa todos.** Um listener em captura no `document`
+   (`pointerdown`/`touchstart`/`touchend`/`mousedown`/`keydown`) chama
+   `resume()` em quem estiver suspenso, incluindo o
+   `Module.AL.currentCtx.audioCtx`, que é justamente o que o EmulatorJS
+   observa. O primeiro toque no direcional já resolve.
+3. **O `checkStarted()` é substituído** no evento `ready` (que dispara bem
+   antes do `startGame()`) por uma versão que tenta religar o áudio sozinho e
+   **não abre popup nenhum**.
+4. **Cinto e suspensório:** um `MutationObserver` esconde qualquer
+   `.ejs_popup_container` com esse texto, caso uma versão futura do
+   EmulatorJS abra o popup por outro caminho.
+
+Resultado: um toque no play e o jogo aparece. Se o navegador não deixar
+religar o áudio na hora, ele volta no primeiro toque no controle — sem
+popup, sem segundo clique.
+
+O resto do gate segue igual: enquanto carrega, o botão vira spinner com barra
+de progresso, e o gate só some no `EJS_onGameStart` pra não deixar tela preta
+no caminho. Esse mesmo toque pede tela cheia (`requestFullscreen`), trava a
+orientação em paisagem (`screen.orientation.lock`) e segura a tela ligada
+(`navigator.wakeLock`).
+
+### Controle virtual: nada no meio da tela
+
+O layout por core fica em `lib/gamepad.js`. Ele parte do padrão oficial do
+EmulatorJS (mesmos `input_value`) com quatro correções:
+
+- **Sem "Fast"/"Slow".** O EmulatorJS empilha esses dois em cima de
+  Start/Select em todo core; só poluíam a tela.
+- **Start e Select saíram do meio.** Eles usavam `location: "center"`, que é o
+  container `.ejs_virtualGamepad_bottom` — `left:50%; margin-left:-62px`, ou
+  seja, exatamente no centro, em cima da ação do jogo. Agora vão pros cantos
+  de baixo, abaixo do direcional e dos botões de ação. Num iPhone deitado
+  (844x390) o Start fica em x 782–832, colado na borda direita.
+- **Diamante do SNES sem sobreposição.** No padrão, X em `left:40` e A em
+  `left:81` com botões de 50px se sobrepõem 9px. Aqui o diamante é ancorado
+  pela direita com passo de 52px.
+- **L/R cabendo na tela.** O padrão usa `top:-100`, que joga os dois pra fora
+  num iPhone SE deitado (320px de altura).
+
+Como o CDN do EmulatorJS é bloqueado no ambiente de desenvolvimento, esse
+layout é conferido pelo `gamepad-harness.js`: ele remonta o **mesmo DOM** que
+o `setVirtualGamepad()` monta, com o `emulator.css` original, e mede a caixa
+de cada botão em 4 tamanhos de tela (844x390, 568x320, 740x360, 1024x460),
+provando que nada invade a faixa central (33%–67%), que nada vaza pra fora e
+que nenhum botão fica por cima de outro.
 
 ### iOS não deixa esconder a barra do navegador
 
@@ -446,7 +491,7 @@ aparência espalha os botões pro lugar errado.
 
 ## Checklist de validação
 
-Rodado automaticamente (Playwright) a cada alteração, quatro conjuntos:
+Rodado automaticamente (Playwright) a cada alteração, seis conjuntos:
 
 **Interface** — layout sem rolagem em 320x568 / 360x740 / 390x844 / 844x390 /
 1280x800, zero erro de JS, busca temática e ranking (incluindo "mario" e
@@ -457,6 +502,12 @@ popup duplo, gamepad enxuto) e as 53 rotas de jogo.
 **Arrasto** — direção (esquerda = próximo, direita = anterior), conteúdo
 acompanhando o dedo, flick curto, arrasto lento que volta pro mesmo card e
 resistência na primeira capa.
+
+**Player e controle** — o popup "Click to resume Emulator" não aparece (com
+um dublê do loader do EmulatorJS que reproduz o caso real: `AudioContext`
+criado depois do gesto), o áudio religa no primeiro toque, e o layout do
+controle é medido em 4 telas com o `emulator.css` original — nada na faixa
+central, nada fora da tela, nenhum botão sobreposto.
 
 **Lista completa** — abre e fecha (X, Esc, ícone), mostra os 53 jogos
 agrupados nos 4 consoles, 14 capas na primeira dobra sem rolagem horizontal,
@@ -472,6 +523,8 @@ transfere o link pro próximo aparelho.
 Pra conferir no celular, o que só dá pra ver lá:
 
 - [ ] Um toque no play e o jogo abre — sem popup pedindo segundo clique
+- [ ] O som volta assim que você encosta no controle
+- [ ] O Start está no canto de baixo, não no meio da tela
 - [ ] O jogo entra já passando da tela de título
 - [ ] Roda liso, sem travar
 - [ ] Save state: jogar, salvar, F5 → volta de onde parou

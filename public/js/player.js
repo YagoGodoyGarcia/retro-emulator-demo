@@ -30,6 +30,103 @@
   // De propósito SEM EJS_startOnLoaded — ver o comentário no clique do gate.
 
   // ------------------------------------------------------------------
+  // matar o "Click to resume Emulator"
+  //
+  // Esse popup (com título "undefined") é do próprio EmulatorJS, no
+  // checkStarted(): no Safari com toque ele fica num laço vendo se o
+  // AudioContext está "suspended" e, enquanto estiver, mostra um botão
+  // pedindo mais um toque. O botão não tem NENHUM handler — ele é só um
+  // pretexto pra arrancar do usuário o gesto que destrava o áudio.
+  //
+  // Por que o contexto nasce suspenso mesmo com o nosso gate: o gesto real
+  // acontece no toque, mas o AudioContext só é criado lá na frente, depois
+  // do download do core e da ROM. Nessa altura a janela do gesto já fechou —
+  // não tem como o start "carregar" o gesto por 10 segundos de download.
+  //
+  // A saída é não depender daquele toque: a gente registra todo AudioContext
+  // criado na página e religa todos no próximo toque real, que vai acontecer
+  // de qualquer jeito (no direcional, no A, em qualquer lugar). Aí o popup
+  // deixa de ter função e é substituído por uma versão silenciosa.
+  // ------------------------------------------------------------------
+
+  var audioContexts = [];
+
+  (function trackAudioContexts() {
+    ["AudioContext", "webkitAudioContext"].forEach(function (name) {
+      var Native = window[name];
+      if (!Native || Native.__mydeTracked) return;
+      var Tracked = function (options) {
+        var ctx = new Native(options);
+        audioContexts.push(ctx);
+        try { ctx.resume(); } catch (e) {}
+        return ctx;
+      };
+      Tracked.prototype = Native.prototype;
+      Tracked.__mydeTracked = true;
+      window[name] = Tracked;
+    });
+  })();
+
+  function resumeAudio() {
+    for (var i = 0; i < audioContexts.length; i++) {
+      try {
+        if (audioContexts[i].state === "suspended") audioContexts[i].resume();
+      } catch (e) {}
+    }
+    // E o contexto do OpenAL do Emscripten, que é o que o EmulatorJS observa.
+    try {
+      var emu = window.EJS_emulator;
+      var al = emu && emu.Module && emu.Module.AL;
+      if (!al || !al.currentCtx) return;
+      if (al.currentCtx.audioCtx && al.currentCtx.audioCtx.state === "suspended") {
+        al.currentCtx.audioCtx.resume();
+      }
+      var sources = al.currentCtx.sources || {};
+      Object.keys(sources).forEach(function (key) {
+        var ctx = sources[key] && sources[key].gain && sources[key].gain.context;
+        if (ctx && ctx.state === "suspended") ctx.resume();
+      });
+    } catch (e) {}
+  }
+
+  ["pointerdown", "touchstart", "touchend", "mousedown", "keydown"].forEach(function (evt) {
+    document.addEventListener(evt, resumeAudio, { capture: true, passive: true });
+  });
+
+  // Troca o checkStarted() do EmulatorJS por um que religa o áudio sozinho em
+  // vez de abrir popup. "ready" dispara logo depois que o botão de start é
+  // criado, muito antes do startGame() — que é quem chama o checkStarted.
+  window.EJS_ready = function () {
+    var emu = window.EJS_emulator;
+    if (!emu) return;
+    emu.checkStarted = function () {
+      var tries = 0;
+      (function poll() {
+        resumeAudio();
+        if (++tries < 40) setTimeout(poll, 250);
+      })();
+    };
+  };
+
+  // Cinto e suspensório: se uma versão futura do EmulatorJS abrir o popup por
+  // outro caminho, ele some assim que aparecer (e o áudio volta no toque).
+  // Varre o container inteiro a cada mutação em vez de olhar só o nó
+  // adicionado: o createPopup() insere a caixa VAZIA e só depois enche de
+  // conteúdo, então no instante da inserção o texto ainda não está lá.
+  if (window.MutationObserver) {
+    var RESUME_TEXT = /resume Emulator|reprendre|reanudar|继续|다시 시작|відновити|devam/i;
+    new MutationObserver(function () {
+      var popups = document.querySelectorAll(".ejs_popup_container");
+      for (var i = 0; i < popups.length; i++) {
+        if (popups[i].style.display === "none") continue;
+        if (!RESUME_TEXT.test(popups[i].textContent)) continue;
+        popups[i].style.display = "none";
+        resumeAudio();
+      }
+    }).observe(document.body, { childList: true, subtree: true, characterData: true });
+  }
+
+  // ------------------------------------------------------------------
   // pular a tela de abertura
   //
   // Praticamente todo jogo retro abre num título esperando START. Depois que
