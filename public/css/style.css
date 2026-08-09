@@ -493,20 +493,66 @@ button {
   color: var(--dim);
 }
 
+/* Fileira horizontal por plataforma (seção 28 do briefing) — scroll nativo
+   do navegador, não a física de arrasto do carrossel principal (.stage):
+   mais simples, sem risco de interferir no gesto já calibrado lá, e o
+   scroll horizontal aqui não briga com o scroll vertical da folha porque
+   são dois eixos/containers diferentes. */
+.library-row {
+  position: relative;
+}
+
 .library-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
-  gap: 12px 10px;
+  display: flex;
+  gap: 10px;
   margin-bottom: 18px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x proximity;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+
+.library-grid::-webkit-scrollbar {
+  display: none;
 }
 
 .library-card {
+  flex: 0 0 112px;
+  scroll-snap-align: start;
   display: flex;
   flex-direction: column;
   gap: 2px;
   text-decoration: none;
   color: inherit;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Setas de rolar — só fazem sentido com mouse/trackpad (touch já rola
+   arrastando o dedo, e ficam por cima do primeiro/último card senão). */
+.library-row-nav {
+  display: none;
+  position: absolute;
+  top: 0;
+  bottom: 18px;
+  width: 32px;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: linear-gradient(90deg, rgba(5, 5, 10, 0.85), transparent);
+  color: var(--text);
+  font-size: 1.1rem;
+  z-index: 3;
+  cursor: pointer;
+}
+
+.library-row-nav--prev { left: 0; }
+.library-row-nav--next { right: 0; transform: scaleX(-1); }
+
+@media (hover: hover) and (pointer: fine) {
+  .library-row-nav { display: flex; }
 }
 
 .library-thumb {
@@ -580,9 +626,9 @@ button {
 
 @media (min-width: 700px) {
   .library-grid {
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 16px 14px;
+    gap: 14px;
   }
+  .library-card { flex-basis: 150px; }
   .library-name { font-size: 0.82rem; }
 }
 

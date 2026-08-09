@@ -586,40 +586,78 @@
 
     var cards = null; // { el, tile } — montado uma vez, no primeiro clique
 
+    // Ícone por plataforma só de enfeite no título da fileira — nada de
+    // lógica em cima disso, se um console novo aparecer sem entrada aqui
+    // cai no 🎮 genérico (ver DEFAULT abaixo).
+    var PLATFORM_ICON = { NES: "🕹️", SNES: "🎮", "MEGA DRIVE": "💙", GBA: "🟣" };
+
     function build() {
       if (cards) return;
       cards = [];
 
-      // Agrupa por console mantendo a ordem em que os consoles aparecem no
-      // catálogo, pra lista não embaralhar a cada abertura.
-      var order = [];
+      // Agrupa por console. A ordem das fileiras vem de
+      // window.__PLATFORM_ORDER__ (lib/platforms.js, injetado no HTML) —
+      // não da ordem em que os jogos foram cadastrados (seção 30 do
+      // briefing) — com "Destaques" sempre primeiro quando existir algum.
       var groups = {};
+      var featured = [];
       tiles.forEach(function (tile) {
         var label = tile.dataset.consoleLabel;
-        if (!groups[label]) {
-          groups[label] = [];
-          order.push(label);
-        }
+        if (!groups[label]) groups[label] = [];
         groups[label].push(tile);
+        if (tile.dataset.featured) featured.push(tile);
+      });
+
+      var configuredOrder = window.__PLATFORM_ORDER__ || [];
+      var order = configuredOrder.filter(function (label) { return groups[label]; });
+      // Plataforma nova que ainda não está na config central (não deveria
+      // acontecer, mas não trava a folha se acontecer) entra no fim.
+      Object.keys(groups).forEach(function (label) {
+        if (order.indexOf(label) === -1) order.push(label);
       });
 
       var frag = document.createDocumentFragment();
-      order.forEach(function (label) {
+
+      function buildRow(label, icon, list) {
         var section = document.createElement("section");
         section.className = "library-group";
 
         var head = document.createElement("h2");
         head.className = "library-group-title";
-        head.textContent = label;
+        head.textContent = (icon ? icon + " " : "") + label;
         var badge = document.createElement("span");
-        badge.textContent = groups[label].length;
+        badge.textContent = list.length;
         head.appendChild(badge);
         section.appendChild(head);
 
+        var row = document.createElement("div");
+        row.className = "library-row";
+
         var grid = document.createElement("div");
         grid.className = "library-grid";
+        row.appendChild(grid);
 
-        groups[label].forEach(function (tile) {
+        var prev = document.createElement("button");
+        prev.type = "button";
+        prev.className = "library-row-nav library-row-nav--prev";
+        prev.setAttribute("aria-label", "Rolar " + label + " pra trás");
+        prev.innerHTML = "&larr;";
+        prev.addEventListener("click", function () {
+          grid.scrollBy({ left: -grid.clientWidth * 0.8, behavior: prefersReducedMotion ? "auto" : "smooth" });
+        });
+        var next = document.createElement("button");
+        next.type = "button";
+        next.className = "library-row-nav library-row-nav--next";
+        next.setAttribute("aria-label", "Rolar " + label + " pra frente");
+        next.innerHTML = "&rarr;";
+        next.addEventListener("click", function () {
+          grid.scrollBy({ left: grid.clientWidth * 0.8, behavior: prefersReducedMotion ? "auto" : "smooth" });
+        });
+        row.appendChild(prev);
+        row.appendChild(next);
+        section.appendChild(row);
+
+        list.forEach(function (tile) {
           var card = document.createElement("a");
           card.className = "library-card";
           card.href = tile.dataset.href;
@@ -661,8 +699,12 @@
           cards.push({ el: card, tile: tile, section: section });
         });
 
-        section.appendChild(grid);
         frag.appendChild(section);
+      }
+
+      if (featured.length) buildRow("Destaques", "🔥", featured);
+      order.forEach(function (label) {
+        buildRow(label, PLATFORM_ICON[label] || "🎮", groups[label]);
       });
 
       scroller.appendChild(frag);
@@ -689,9 +731,12 @@
       });
 
       if (counter) {
+        // tiles.length, não cards.length: um jogo em destaque aparece em
+        // dois cards (a fileira "Destaques" + a do console dele de
+        // verdade), de propósito — mas o total não pode contar ele 2x.
         counter.textContent = query
           ? shown + (shown === 1 ? " jogo encontrado" : " jogos encontrados")
-          : cards.length + " jogos na biblioteca";
+          : tiles.length + " jogos na biblioteca";
       }
     }
 

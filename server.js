@@ -13,6 +13,7 @@ const library = require("./lib/library-service");
 const platforms = require("./lib/platforms");
 const romHashLib = require("./lib/rom-hash");
 const blobUploadPolicy = require("./lib/blob-upload-policy");
+const libraryScan = require("./lib/library-scan");
 const { handleUpload: handleBlobUpload } = require("@vercel/blob/client");
 
 const app = express();
@@ -324,7 +325,13 @@ app.get("/", requireAccess, async (req, res) => {
     </div>
   </div>
 
-  <script>window.__SESSION__ = ${req.mydeSession && req.mydeSession.token ? "true" : "false"};</script>
+  <script>
+    window.__SESSION__ = ${req.mydeSession && req.mydeSession.token ? "true" : "false"};
+    // Ordem central de plataformas (lib/platforms.js) pra agrupar a folha
+    // "ver todos os jogos" sem depender da ordem em que os jogos foram
+    // cadastrados (seção 30 do briefing).
+    window.__PLATFORM_ORDER__ = ${jsonForScript(platforms.list().map((p) => p.label))};
+  </script>
   <script src="/js/library.js" defer></script>
 </body>
 </html>`);
@@ -482,6 +489,8 @@ app.get("/admin", async (req, res) => {
       <div class="chip-row">
         ${platforms.list().map((p) => `<span class="chip">${escapeHtml(p.label)} · ${byPlatform[p.id] || 0}</span>`).join("")}
       </div>
+      <button type="button" class="btn--ghost" id="scan-btn" style="margin-top:12px">Verificar biblioteca</button>
+      <div id="scan-result"></div>
     </div>`;
 
   const warnings = [];
@@ -842,6 +851,23 @@ app.post("/admin/api/blob/upload-token", requireAdmin, async (req, res) => {
     }
     console.error("[blob] falha ao emitir token de upload:", err.message);
     res.status(400).json({ error: err.message });
+  }
+});
+
+// "Verificar biblioteca" (Fase 9) — cruza o catálogo com o Blob de verdade.
+// Sem BLOB_READ_WRITE_TOKEN configurado ainda funciona, só sem os
+// checks de órfão/URL-quebrada de Blob (blob.list() devolve [] nesse caso —
+// ver lib/blob.js), o resto (jogo sem ROM/capa, plataforma desconhecida,
+// hash duplicado) continua valendo.
+app.get("/admin/api/library/scan", requireAdmin, async (req, res) => {
+  try {
+    const games = await library.getAllGames();
+    const [romBlobs, coverBlobs] = await Promise.all([blob.list("roms"), blob.list("covers")]);
+    const issues = libraryScan.scanLibrary(games, romBlobs, coverBlobs);
+    res.json({ issues, blobChecked: blob.durable, checkedAt: Date.now() });
+  } catch (err) {
+    console.error("[library] falha ao verificar biblioteca:", err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 
