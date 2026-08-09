@@ -27,6 +27,30 @@
   window.EJS_backgroundColor = "#000000";
   if (CFG.gamepad) window.EJS_VirtualGamepadSettings = CFG.gamepad;
 
+  // Menu do EmulatorJS por padrão é feito pra quem desenvolve/testa core, não
+  // pra quem abriu um link de QR code pra jogar 2 minutos. Tira o que é
+  // opção técnica ou duplicada (Quick Save/Load fazem a mesma coisa que Save
+  // State/Load State, só sem ícone — apareciam como uma segunda entrada
+  // repetida no menu). "Context Menu" não é possível esconder: o próprio
+  // EmulatorJS ignora override nesse botão (buildButtonOptions, checado na
+  // fonte antes de mexer aqui).
+  window.EJS_Buttons = {
+    cheat: false,
+    cacheManager: false,
+    saveSavFiles: false,
+    loadSavFiles: false,
+    screenshot: false,
+    screenRecord: false,
+    diskButton: false,
+    quickSave: false,
+    quickLoad: false,
+    gamepad: false, // "Configurações do Controle" — remapeia controle físico; o app já tem o virtual pronto
+  };
+
+  // Idem pro submenu "Ajustes": troca de core, threads, shader e FPS/VSync
+  // são ajuste de quem está testando o emulador, não de quem só quer jogar.
+  window.EJS_hideSettings = ["retroarch_core", "ejs_threads", "shader", "webgl2Enabled", "fps", "vsync", "videoRotation"];
+
   // De propósito SEM EJS_startOnLoaded — ver o comentário no clique do gate.
 
   // ------------------------------------------------------------------
