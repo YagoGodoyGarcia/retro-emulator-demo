@@ -1,5 +1,5 @@
 {
-  "_comment": "id -> config do jogo. gameUrl/cover apontam pra /roms e /covers (servidos same-origin). tags = palavras-chave temáticas pra busca. featured: true fixa o jogo no início da vitrine com [...]"
+  "_comment": "id -> config do jogo. gameUrl/cover apontam pra /roms e /covers (servidos same-origin). tags = palavras-chave temáticas pra busca. featured: true fixa o jogo no início da vitrine com selo de destaque.",
   "flappybird-nes": {
     "core": "nes",
     "gameUrl": "/roms/flappybird.nes",
@@ -814,20 +814,6 @@
       "tiro",
       "exército",
       "combate"
-    ]
-  },
-  "bomberman-nes": {
-    "core": "nes",
-    "gameUrl": "/roms/bomberman.nes",
-    "gameId": "bomberman-nes",
-    "title": "Bomberman",
-    "genre": "Ação",
-    "cover": "papicommando-md.png",
-    "tags": [
-      "bomba",
-      "ação",
-      "multiplayer",
-      "arena"
     ]
   }
 }
