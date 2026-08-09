@@ -45,6 +45,16 @@ test("buildGameUpdate recusa status inválido", () => {
   );
 });
 
+test("buildGameUpdate converte featured de string (FormData) pra boolean", () => {
+  assert.equal(gameEntry.buildGameUpdate({ title: "Jogo", featured: "true" }).featured, true);
+  assert.equal(gameEntry.buildGameUpdate({ title: "Jogo", featured: "false" }).featured, false);
+});
+
+test("buildGameUpdate sem featured não mexe no campo (edição em massa de outra coisa não desmarca destaque)", () => {
+  const result = gameEntry.buildGameUpdate({ title: "Jogo" });
+  assert.equal("featured" in result, false);
+});
+
 test("buildGameUpdate sem status não mexe no campo", () => {
   const result = gameEntry.buildGameUpdate({ title: "Jogo" });
   assert.equal("status" in result, false);

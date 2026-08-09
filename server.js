@@ -453,9 +453,36 @@ function adminSetupPage(res) {
   });
 }
 
-app.get("/admin", (req, res) => {
+app.get("/admin", async (req, res) => {
   if (!access.adminConfigured) return adminSetupPage(res);
   if (!access.isAdmin(req)) return adminLoginPage(res);
+
+  // Painel de biblioteca (Fase 9) — contagem simples a partir do catálogo já
+  // carregado, sem escanear o Blob. "Verificar biblioteca" cruzando
+  // catálogo x arquivos reais no Blob (ROM órfã, capa quebrada) fica pra
+  // uma fase própria — precisa listar o storage inteiro, escopo maior.
+  const allGames = await library.getAllGames();
+  const byPlatform = {};
+  let reviewCount = 0;
+  let missingCoverCount = 0;
+  for (const g of allGames) {
+    byPlatform[g.platform] = (byPlatform[g.platform] || 0) + 1;
+    if (g.status !== "published") reviewCount++;
+    if (!g.cover) missingCoverCount++;
+  }
+  const libraryStatsHtml = `
+    <div class="panel">
+      <h2>Biblioteca</h2>
+      <p class="panel-note" style="margin-bottom:10px">
+        <strong>${allGames.length}</strong> jogo(s) ·
+        <strong>${platforms.list().length}</strong> plataforma(s) ·
+        <strong>${reviewCount}</strong> em revisão ·
+        <strong>${missingCoverCount}</strong> sem capa
+      </p>
+      <div class="chip-row">
+        ${platforms.list().map((p) => `<span class="chip">${escapeHtml(p.label)} · ${byPlatform[p.id] || 0}</span>`).join("")}
+      </div>
+    </div>`;
 
   const warnings = [];
   if (!store.durable) {
@@ -511,6 +538,8 @@ app.get("/admin", (req, res) => {
 
     ${warnings.join("\n")}
 
+    ${libraryStatsHtml}
+
     <div class="panel">
       <h2>Gerar link de acesso</h2>
       <form class="field-row" id="create-form">
@@ -560,6 +589,21 @@ app.get("/admin", (req, res) => {
         <p class="form-error" id="game-error" hidden></p>
       </form>
     </div>
+
+    <div class="bulk-bar" id="bulk-bar" hidden>
+      <span id="bulk-count" class="panel-note" style="margin:0"></span>
+      <input class="field" id="bulk-genre" type="text" placeholder="Gênero" style="max-width:140px" />
+      <button type="button" class="btn--ghost" data-bulk="genre">Definir gênero</button>
+      <input class="field" id="bulk-tag" type="text" placeholder="Tema" style="max-width:120px" />
+      <button type="button" class="btn--ghost" data-bulk="add-tag">+ tema</button>
+      <button type="button" class="btn--ghost" data-bulk="remove-tag">- tema</button>
+      <button type="button" class="btn--ghost" data-bulk="feature">Marcar destaque</button>
+      <button type="button" class="btn--ghost" data-bulk="unfeature">Tirar destaque</button>
+      <button type="button" class="btn" data-bulk="publish">Publicar</button>
+      <button type="button" class="btn--ghost" data-bulk="unpublish">Despublicar</button>
+      <button type="button" class="btn--ghost" data-bulk="clear">Limpar seleção</button>
+    </div>
+    <p class="form-error" id="bulk-error" hidden></p>
 
     <div class="game-list" id="game-list"></div>
   </div>
@@ -949,10 +993,11 @@ app.patch(
       if (!game) return res.status(404).json({ error: "não encontrado" });
 
       const newCoverFile = req.files && req.files.cover && req.files.cover[0];
-      const { title, genre, tags, coverExt, status } = gameEntry.buildGameUpdate(req.body, newCoverFile);
+      const { title, genre, tags, coverExt, status, featured } = gameEntry.buildGameUpdate(req.body, newCoverFile);
 
       const updated = { ...game, title, genre, tags };
       if (status) updated.status = status;
+      if (featured !== undefined) updated.featured = featured;
 
       // Publicar exige capa — um jogo importado em lote (Fase 5) entra sem
       // capa de propósito (seção 50 do briefing) e não pode ir pra vitrine

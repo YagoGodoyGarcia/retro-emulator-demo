@@ -154,6 +154,21 @@
 
     var currentGames = [];
     var editingId = null;
+    var selectedIds = {};
+
+    var bulkBar = document.getElementById("bulk-bar");
+    var bulkCount = document.getElementById("bulk-count");
+    var bulkError = document.getElementById("bulk-error");
+
+    function selectedCount() {
+      return Object.keys(selectedIds).filter(function (id) { return selectedIds[id]; }).length;
+    }
+
+    function updateBulkBar() {
+      var n = selectedCount();
+      bulkBar.hidden = n === 0;
+      bulkCount.textContent = n + " selecionado(s)";
+    }
 
     function renderGames(games) {
       currentGames = games;
@@ -200,8 +215,10 @@
             : "";
           return (
             '<div class="game-card">' +
+            '<input type="checkbox" class="game-card-select" data-select-game="' + escapeHtml(g.gameId) + '"' +
+            (selectedIds[g.gameId] ? " checked" : "") + " />" +
             '<div class="game-thumb">' + thumb + badge + '</div>' +
-            '<div class="game-card-title">' + escapeHtml(g.title) + "</div>" +
+            '<div class="game-card-title">' + escapeHtml(g.title) + (g.featured ? " ★" : "") + "</div>" +
             '<div class="game-card-meta">' + escapeHtml(g.core) + (g.genre ? " · " + escapeHtml(g.genre) : "") + "</div>" +
             '<div class="game-card-actions">' +
             openBtn +
@@ -212,6 +229,7 @@
           );
         })
         .join("");
+      updateBulkBar();
     }
 
     function loadGames() {
@@ -420,6 +438,101 @@
         method: "DELETE",
         credentials: "same-origin",
       }).then(loadGames);
+    });
+
+    gameList.addEventListener("change", function (e) {
+      var cb = e.target.closest("[data-select-game]");
+      if (!cb) return;
+      if (cb.checked) selectedIds[cb.dataset.selectGame] = true;
+      else delete selectedIds[cb.dataset.selectGame];
+      updateBulkBar();
+    });
+
+    // -------------------------------------------------------------------
+    // ações em massa — reaproveita a mesma rota PATCH de sempre, um
+    // request por jogo selecionado (contagem é pequena, não precisa de
+    // fila com concorrência limitada como o import). Não existe "definir
+    // plataforma" em massa: o arquivo da ROM já foi validado contra um
+    // console específico no upload, trocar o console sem trocar o arquivo
+    // deixaria o jogo com a extensão errada pro player.
+    // -------------------------------------------------------------------
+
+    function patchGame(gameId, fields) {
+      var game = currentGames.filter(function (g) { return g.gameId === gameId; })[0];
+      if (!game) return Promise.resolve({ ok: false, title: gameId, data: { error: "não encontrado" } });
+      var body = new FormData();
+      body.append("title", game.title);
+      body.append("genre", fields.genre !== undefined ? fields.genre : (game.genre || ""));
+      body.append("tags", fields.tags !== undefined ? fields.tags : (game.tags || []).join(", "));
+      if (fields.status !== undefined) body.append("status", fields.status);
+      if (fields.featured !== undefined) body.append("featured", fields.featured ? "true" : "false");
+      return fetch("/admin/api/games/" + encodeURIComponent(gameId), {
+        method: "PATCH",
+        credentials: "same-origin",
+        body: body,
+      }).then(function (r) {
+        return r.json().then(function (data) { return { ok: r.ok, data: data, title: game.title }; });
+      });
+    }
+
+    function runBulk(fieldsFn) {
+      var ids = Object.keys(selectedIds).filter(function (id) { return selectedIds[id]; });
+      bulkError.hidden = true;
+      return Promise.all(
+        ids.map(function (id) {
+          var game = currentGames.filter(function (g) { return g.gameId === id; })[0];
+          return patchGame(id, fieldsFn(game));
+        })
+      ).then(function (results) {
+        var failed = results.filter(function (r) { return !r.ok; });
+        if (failed.length) {
+          bulkError.textContent =
+            failed.length + " de " + results.length + " falharam: " +
+            failed.map(function (f) { return f.title + " (" + ((f.data && f.data.error) || "erro") + ")"; }).join("; ");
+          bulkError.hidden = false;
+        }
+        selectedIds = {};
+        loadGames();
+      });
+    }
+
+    document.getElementById("bulk-bar").addEventListener("click", function (e) {
+      var btn = e.target.closest("[data-bulk]");
+      if (!btn) return;
+      var action = btn.dataset.bulk;
+
+      if (action === "clear") {
+        selectedIds = {};
+        renderGames(currentGames);
+        return;
+      }
+      if (action === "genre") {
+        var genreVal = document.getElementById("bulk-genre").value.trim();
+        runBulk(function () { return { genre: genreVal }; });
+        return;
+      }
+      if (action === "add-tag" || action === "remove-tag") {
+        var tagVal = document.getElementById("bulk-tag").value.trim().toLowerCase();
+        if (!tagVal) return;
+        runBulk(function (game) {
+          var tags = (game.tags || []).slice();
+          if (action === "add-tag") {
+            if (tags.indexOf(tagVal) === -1) tags.push(tagVal);
+          } else {
+            tags = tags.filter(function (t) { return t !== tagVal; });
+          }
+          return { tags: tags.join(", ") };
+        });
+        return;
+      }
+      if (action === "feature" || action === "unfeature") {
+        runBulk(function () { return { featured: action === "feature" }; });
+        return;
+      }
+      if (action === "publish" || action === "unpublish") {
+        runBulk(function () { return { status: action === "publish" ? "published" : "review" }; });
+        return;
+      }
     });
 
     loadGames();
