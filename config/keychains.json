@@ -548,24 +548,6 @@
       "aventura"
     ]
   },
-  "megafamily-snes": {
-    "core": "snes",
-    "gameUrl": "/roms/megafamily-snes.smc",
-    "gameId": "megafamily-snes",
-    "title": "Mega Family Bros",
-    "genre": "Plataforma",
-    "cover": "megafamily-snes.png",
-    "featured": true,
-    "tags": [
-      "plataforma",
-      "pulos",
-      "moedas",
-      "canos",
-      "aventura",
-      "irmãos",
-      "clássico"
-    ]
-  },
   "uwolquest-snes": {
     "core": "snes",
     "gameUrl": "/roms/uwolquest-snes.sfc",
@@ -701,25 +683,6 @@
       "katana",
       "shuriken",
       "hordas"
-    ]
-  },
-  "vilq-md": {
-    "core": "segaMD",
-    "gameUrl": "/roms/vilq-md.bin",
-    "gameId": "vilq-md",
-    "title": "VilQ Adventure",
-    "genre": "Plataforma",
-    "cover": "vilq-md.png",
-    "featured": true,
-    "tags": [
-      "corrida",
-      "velocidade",
-      "plataforma",
-      "pulos",
-      "floresta",
-      "mascote",
-      "aventura",
-      "animais"
     ]
   },
   "oldtowers-md": {
