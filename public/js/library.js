@@ -568,217 +568,197 @@
   });
 
   // -------------------------------------------------------------------
-  // lista completa (grade)
-  //
-  // O carrossel é ótimo pra passear, mas ruim pra achar um jogo específico
-  // numa biblioteca grande. Esta folha mostra tudo de uma vez, agrupado por
-  // console, com filtro próprio. Tocar num card já abre o jogo.
+  // fileira de cards reutilizável (Consoles agrupa por console, Coleções
+  // agrupa por gênero) — extraído do que era só da folha "ver todos".
   // -------------------------------------------------------------------
 
-  (function () {
-    var sheet = document.getElementById("library-sheet");
-    var openBtn = document.getElementById("grid-toggle");
-    var closeBtn = document.getElementById("library-close");
-    var scroller = document.getElementById("library-scroll");
-    var input = document.getElementById("library-search-input");
-    var counter = document.getElementById("library-count");
-    if (!sheet || !openBtn || !scroller) return;
+  function buildCardRow(label, icon, list) {
+    var section = document.createElement("section");
+    section.className = "library-group";
 
-    var cards = null; // { el, tile } — montado uma vez, no primeiro clique
+    var head = document.createElement("h2");
+    head.className = "library-group-title";
+    head.textContent = (icon ? icon + " " : "") + label;
+    var badge = document.createElement("span");
+    badge.textContent = list.length;
+    head.appendChild(badge);
+    section.appendChild(head);
 
-    // Ícone por plataforma só de enfeite no título da fileira — nada de
-    // lógica em cima disso, se um console novo aparecer sem entrada aqui
-    // cai no 🎮 genérico (ver DEFAULT abaixo).
-    var PLATFORM_ICON = { NES: "🕹️", SNES: "🎮", "MEGA DRIVE": "💙", GBA: "🟣" };
+    var row = document.createElement("div");
+    row.className = "library-row";
 
-    function build() {
-      if (cards) return;
-      cards = [];
+    var grid = document.createElement("div");
+    grid.className = "library-grid";
+    row.appendChild(grid);
 
-      // Agrupa por console. A ordem das fileiras vem de
-      // window.__PLATFORM_ORDER__ (lib/platforms.js, injetado no HTML) —
-      // não da ordem em que os jogos foram cadastrados (seção 30 do
-      // briefing) — com "Destaques" sempre primeiro quando existir algum.
-      var groups = {};
-      var featured = [];
-      tiles.forEach(function (tile) {
-        var label = tile.dataset.consoleLabel;
-        if (!groups[label]) groups[label] = [];
-        groups[label].push(tile);
-        if (tile.dataset.featured) featured.push(tile);
-      });
-
-      var configuredOrder = window.__PLATFORM_ORDER__ || [];
-      var order = configuredOrder.filter(function (label) { return groups[label]; });
-      // Plataforma nova que ainda não está na config central (não deveria
-      // acontecer, mas não trava a folha se acontecer) entra no fim.
-      Object.keys(groups).forEach(function (label) {
-        if (order.indexOf(label) === -1) order.push(label);
-      });
-
-      var frag = document.createDocumentFragment();
-
-      function buildRow(label, icon, list) {
-        var section = document.createElement("section");
-        section.className = "library-group";
-
-        var head = document.createElement("h2");
-        head.className = "library-group-title";
-        head.textContent = (icon ? icon + " " : "") + label;
-        var badge = document.createElement("span");
-        badge.textContent = list.length;
-        head.appendChild(badge);
-        section.appendChild(head);
-
-        var row = document.createElement("div");
-        row.className = "library-row";
-
-        var grid = document.createElement("div");
-        grid.className = "library-grid";
-        row.appendChild(grid);
-
-        var prev = document.createElement("button");
-        prev.type = "button";
-        prev.className = "library-row-nav library-row-nav--prev";
-        prev.setAttribute("aria-label", "Rolar " + label + " pra trás");
-        prev.innerHTML = "&larr;";
-        prev.addEventListener("click", function () {
-          grid.scrollBy({ left: -grid.clientWidth * 0.8, behavior: prefersReducedMotion ? "auto" : "smooth" });
-        });
-        var next = document.createElement("button");
-        next.type = "button";
-        next.className = "library-row-nav library-row-nav--next";
-        next.setAttribute("aria-label", "Rolar " + label + " pra frente");
-        next.innerHTML = "&rarr;";
-        next.addEventListener("click", function () {
-          grid.scrollBy({ left: grid.clientWidth * 0.8, behavior: prefersReducedMotion ? "auto" : "smooth" });
-        });
-        row.appendChild(prev);
-        row.appendChild(next);
-        section.appendChild(row);
-
-        list.forEach(function (tile) {
-          var card = document.createElement("a");
-          card.className = "library-card";
-          card.href = tile.dataset.href;
-          if (tile.dataset.featured) card.classList.add("library-card--featured");
-
-          var thumb = document.createElement("div");
-          thumb.className = "library-thumb";
-          var img = document.createElement("img");
-          img.src = tile.querySelector(".tile-img").src;
-          img.alt = "";
-          img.loading = "lazy";
-          img.decoding = "async";
-          img.draggable = false;
-          thumb.appendChild(img);
-          if (tile.dataset.featured) {
-            var star = document.createElement("span");
-            star.className = "library-star";
-            star.textContent = "Exclusivo";
-            thumb.appendChild(star);
-          }
-          card.appendChild(thumb);
-
-          var name = document.createElement("span");
-          name.className = "library-name";
-          name.textContent = tile.dataset.titleLabel;
-          card.appendChild(name);
-
-          var genre = document.createElement("span");
-          genre.className = "library-genre";
-          genre.textContent = tile.dataset.genreLabel;
-          card.appendChild(genre);
-
-          card.addEventListener("click", function (e) {
-            e.preventDefault();
-            launch(tile);
-          });
-
-          grid.appendChild(card);
-          cards.push({ el: card, tile: tile, section: section });
-        });
-
-        frag.appendChild(section);
-      }
-
-      if (featured.length) buildRow("Destaques", "🔥", featured);
-      order.forEach(function (label) {
-        buildRow(label, PLATFORM_ICON[label] || "🎮", groups[label]);
-      });
-
-      scroller.appendChild(frag);
-    }
-
-    function applyFilter() {
-      var query = input ? input.value.trim() : "";
-      var shown = 0;
-
-      cards.forEach(function (row) {
-        var ok = !query || scoreGame(row.tile, query) > 0;
-        row.el.hidden = !ok;
-        if (ok) shown++;
-      });
-
-      // Esconde o cabeçalho de um console que ficou sem nenhum jogo visível.
-      var seen = [];
-      cards.forEach(function (row) {
-        if (seen.indexOf(row.section) !== -1) return;
-        seen.push(row.section);
-        row.section.hidden = !cards.some(function (r) {
-          return r.section === row.section && !r.el.hidden;
-        });
-      });
-
-      if (counter) {
-        // tiles.length, não cards.length: um jogo em destaque aparece em
-        // dois cards (a fileira "Destaques" + a do console dele de
-        // verdade), de propósito — mas o total não pode contar ele 2x.
-        counter.textContent = query
-          ? shown + (shown === 1 ? " jogo encontrado" : " jogos encontrados")
-          : tiles.length + " jogos na biblioteca";
-      }
-    }
-
-    function open() {
-      build();
-      applyFilter();
-      sheet.hidden = false;
-      // reflow antes da classe, senão a transição de entrada não roda
-      void sheet.offsetWidth;
-      sheet.classList.add("is-open");
-      openBtn.setAttribute("aria-expanded", "true");
-      document.body.classList.add("sheet-open");
-      scroller.scrollTop = 0;
-    }
-
-    function close() {
-      sheet.classList.remove("is-open");
-      openBtn.setAttribute("aria-expanded", "false");
-      document.body.classList.remove("sheet-open");
-      var done = function () {
-        sheet.hidden = true;
-        sheet.removeEventListener("transitionend", done);
-      };
-      if (prefersReducedMotion) done();
-      else sheet.addEventListener("transitionend", done);
-      openBtn.focus();
-    }
-
-    openBtn.addEventListener("click", function () {
-      if (sheet.hidden) open();
-      else close();
+    var prev = document.createElement("button");
+    prev.type = "button";
+    prev.className = "library-row-nav library-row-nav--prev";
+    prev.setAttribute("aria-label", "Rolar " + label + " pra trás");
+    prev.innerHTML = "&larr;";
+    prev.addEventListener("click", function () {
+      grid.scrollBy({ left: -grid.clientWidth * 0.8, behavior: prefersReducedMotion ? "auto" : "smooth" });
     });
-    closeBtn.addEventListener("click", close);
-    if (input) input.addEventListener("input", applyFilter);
+    var next = document.createElement("button");
+    next.type = "button";
+    next.className = "library-row-nav library-row-nav--next";
+    next.setAttribute("aria-label", "Rolar " + label + " pra frente");
+    next.innerHTML = "&rarr;";
+    next.addEventListener("click", function () {
+      grid.scrollBy({ left: grid.clientWidth * 0.8, behavior: prefersReducedMotion ? "auto" : "smooth" });
+    });
+    row.appendChild(prev);
+    row.appendChild(next);
+    section.appendChild(row);
 
-    document.addEventListener("keydown", function (e) {
-      if (e.key === "Escape" && !sheet.hidden) {
+    list.forEach(function (tile) {
+      var card = document.createElement("a");
+      card.className = "library-card";
+      card.href = tile.dataset.href;
+      card.setAttribute("data-nav", "");
+      if (tile.dataset.featured) card.classList.add("library-card--featured");
+
+      var thumb = document.createElement("div");
+      thumb.className = "library-thumb";
+      var img = document.createElement("img");
+      img.src = tile.querySelector(".tile-img").src;
+      img.alt = "";
+      img.loading = "lazy";
+      img.decoding = "async";
+      img.draggable = false;
+      thumb.appendChild(img);
+      if (tile.dataset.featured) {
+        var star = document.createElement("span");
+        star.className = "library-star";
+        star.textContent = "Exclusivo";
+        thumb.appendChild(star);
+      }
+      card.appendChild(thumb);
+
+      var name = document.createElement("span");
+      name.className = "library-name";
+      name.textContent = tile.dataset.titleLabel;
+      card.appendChild(name);
+
+      var genre = document.createElement("span");
+      genre.className = "library-genre";
+      genre.textContent = tile.dataset.genreLabel;
+      card.appendChild(genre);
+
+      card.addEventListener("click", function (e) {
         e.preventDefault();
-        close();
-      }
+        launch(tile);
+      });
+
+      grid.appendChild(card);
     });
-  })();
+
+    return section;
+  }
+
+  // -------------------------------------------------------------------
+  // aba Consoles — um tile por plataforma com jogo cadastrado; tocar filtra
+  // o carrossel da aba Jogos por aquele console (reaproveita o chip já
+  // existente, sem duplicar a lógica de filtro).
+  // -------------------------------------------------------------------
+
+  var PLATFORM_ICON = { NES: "🕹️", SNES: "🎮", "MEGA DRIVE": "💙", GBA: "🟣" };
+
+  function buildConsolesGrid() {
+    var grid = document.getElementById("consoles-grid");
+    if (!grid || grid.childElementCount) return;
+
+    var groups = {}; // core -> { label, tiles }
+    tiles.forEach(function (tile) {
+      var core = tile.dataset.core;
+      if (!groups[core]) groups[core] = { label: tile.dataset.consoleLabel, tiles: [] };
+      groups[core].tiles.push(tile);
+    });
+
+    var configuredOrder = window.__PLATFORM_ORDER__ || [];
+    var cores = Object.keys(groups).sort(function (a, b) {
+      var ia = configuredOrder.indexOf(groups[a].label);
+      var ib = configuredOrder.indexOf(groups[b].label);
+      if (ia === -1) ia = configuredOrder.length;
+      if (ib === -1) ib = configuredOrder.length;
+      return ia - ib;
+    });
+
+    var frag = document.createDocumentFragment();
+    cores.forEach(function (core) {
+      var group = groups[core];
+      var sample = group.tiles[0];
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "console-tile";
+      btn.setAttribute("data-nav", "");
+      btn.style.setProperty("--art", "url('" + sample.querySelector(".tile-img").src + "')");
+      btn.style.setProperty("--accent", getComputedStyle(sample).getPropertyValue("--accent") || "var(--brand)");
+      btn.innerHTML =
+        '<span class="console-tile-icon">' + (PLATFORM_ICON[group.label] || "🎮") + "</span>" +
+        '<span class="console-tile-label">' + group.label + "</span>" +
+        '<span class="console-tile-count">' + group.tiles.length + (group.tiles.length === 1 ? " jogo" : " jogos") + "</span>";
+      btn.addEventListener("click", function () {
+        var chip = chips.filter(function (c) { return c.dataset.filter === core; })[0];
+        if (chip) chip.click();
+        setActiveTab("jogos");
+      });
+      frag.appendChild(btn);
+    });
+
+    grid.appendChild(frag);
+  }
+
+  // -------------------------------------------------------------------
+  // aba Coleções — agrupado por gênero. Jogo sem gênero cadastrado cai em
+  // "Outros" em vez de sumir da aba.
+  // -------------------------------------------------------------------
+
+  function buildCollections() {
+    var scroller = document.getElementById("collections-scroll");
+    if (!scroller || scroller.childElementCount) return;
+
+    var groups = {};
+    var order = [];
+    tiles.forEach(function (tile) {
+      var label = tile.dataset.genreLabel || "Outros";
+      if (!groups[label]) { groups[label] = []; order.push(label); }
+      groups[label].push(tile);
+    });
+    order.sort(function (a, b) { return groups[b].length - groups[a].length; });
+
+    var frag = document.createDocumentFragment();
+    order.forEach(function (label) {
+      frag.appendChild(buildCardRow(label, "", groups[label]));
+    });
+    scroller.appendChild(frag);
+  }
+
+  // -------------------------------------------------------------------
+  // troca de aba — Jogos / Consoles / Coleções
+  // -------------------------------------------------------------------
+
+  var tabButtons = Array.prototype.slice.call(document.querySelectorAll("[data-tab-btn]"));
+  var tabPanels = Array.prototype.slice.call(document.querySelectorAll("[data-tab-panel]"));
+
+  function setActiveTab(tab) {
+    tabButtons.forEach(function (btn) {
+      var active = btn.dataset.tab === tab;
+      btn.classList.toggle("is-active", active);
+      btn.setAttribute("aria-selected", String(active));
+    });
+    tabPanels.forEach(function (panel) {
+      panel.hidden = panel.dataset.tabPanel !== tab;
+      panel.classList.toggle("is-active", panel.dataset.tabPanel === tab);
+    });
+    if (tab === "consoles") buildConsolesGrid();
+    if (tab === "colecoes") buildCollections();
+    if (tab === "jogos") setTimeout(layout, 0); // painel saiu de display:none, recalcula
+  }
+
+  tabButtons.forEach(function (btn) {
+    btn.addEventListener("click", function () { setActiveTab(btn.dataset.tab); });
+  });
 
   // Arrastar pra folhear.
   //
