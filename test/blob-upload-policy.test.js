@@ -9,7 +9,17 @@ function payload(kind, platform) {
 test("aprova rom no destino esperado", () => {
   const result = reviewUploadRequest("roms/nes/mario.nes", payload("roms", "nes"));
   assert.equal(result.maximumSizeInBytes, 1 * 1024 * 1024);
-  assert.deepEqual(result.allowedContentTypes, ["*/*"]);
+  // undefined = sem restrição de content-type pro Vercel Blob. NÃO trocar
+  // por ["*/*"]: esse array não age como "libera tudo" na API real (exige
+  // "tipo/*"), e faz o upload de ROM ser recusado com "Content type
+  // mismatch" pra qualquer arquivo com mimetype reconhecido (ex. .zip de
+  // romset de arcade vem como application/zip).
+  assert.equal(result.allowedContentTypes, undefined);
+});
+
+test("aprova romset de arcade em .zip no destino esperado", () => {
+  const result = reviewUploadRequest("roms/arcade/sf2.zip", payload("roms", "arcade"));
+  assert.equal(result.allowedContentTypes, undefined);
 });
 
 test("aprova capa no destino esperado", () => {
