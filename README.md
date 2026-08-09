@@ -170,8 +170,17 @@ O que foi feito pra reduzir o tempo entre abrir o site e estar jogando:
    sistema começam a baixar em segundo plano, em `requestIdleCallback`.
    Quando o usuário toca em "Jogar", boa parte já está no cache. Respeita
    `saveData` e pula em conexão 2G.
-2. **Service worker** (`public/sw.js`): cache-first em capas, ROMs, CSS e JS.
-   A segunda visita é praticamente instantânea.
+2. **Service worker** (`public/sw.js`): cache-first em capas, ROMs e ícones —
+   esses nunca mudam de conteúdo debaixo do mesmo nome de arquivo. CSS e JS
+   usam *stale-while-revalidate*: servem o que já está em cache na hora
+   (mesma velocidade) e buscam a versão nova em paralelo, atualizando o
+   cache — a próxima carga já sai corrigida sozinha. Isso existe porque
+   cache-first puro em CSS/JS já deixou visitante recorrente preso num
+   `library.js` de um deploy anterior: a página carregava normal (HTML vem
+   sempre da rede), mas o JS por trás de um botão novo continuava sendo o de
+   antes, e o botão não fazia nada. `VERSION` em `sw.js` também precisa subir
+   a cada deploy que muda `public/css/` ou `public/js/` — isso apaga de vez
+   qualquer cache de uma versão anterior no `activate`.
 3. **Cache HTTP longo** nos assets imutáveis (`/covers`, `/roms`, `/icons`:
    1 ano, `immutable`). HTML fica de fora pro catálogo nunca ficar velho.
    Esses headers estão em **`vercel.json`**, não no Express: em produção a
@@ -491,7 +500,7 @@ aparência espalha os botões pro lugar errado.
 
 ## Checklist de validação
 
-Rodado automaticamente (Playwright) a cada alteração, seis conjuntos:
+Rodado automaticamente (Playwright/Node) a cada alteração, sete conjuntos:
 
 **Interface** — layout sem rolagem em 320x568 / 360x740 / 390x844 / 844x390 /
 1280x800, zero erro de JS, busca temática e ranking (incluindo "mario" e
@@ -513,6 +522,14 @@ central, nada fora da tela, nenhum botão sobreposto.
 agrupados nos 4 consoles, 14 capas na primeira dobra sem rolagem horizontal,
 filtro que esconde grupo vazio, selo nos exclusivos, e tocar num card abre o
 jogo. Sem erro de JS e sem nenhum arquivo 404.
+
+**Service worker** (`check-sw-logic.js`) — carrega o `public/sw.js` de
+verdade (não uma cópia) num `self`/`caches`/`fetch` simulados e dispara os
+mesmos eventos que o navegador dispararia: um `VERSION` novo apaga cache de
+versão antiga no `activate`; CSS/JS fazem stale-while-revalidate (primeira
+resposta vem do cache, a segunda carga já vem atualizada); capas/ROMs/ícones
+continuam cache-first puro sem gastar rede à toa; `/admin`, `/t/` e `/api/`
+nunca passam pelo cache.
 
 **Acesso** — admin pede senha e recusa senha errada, API do admin bloqueada
 sem sessão, geração de link com QR, primeiro aparelho entra, segundo aparelho

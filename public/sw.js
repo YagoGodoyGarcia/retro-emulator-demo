@@ -8,7 +8,7 @@
 // pro navegador — resposta opaca de terceiro em cache dá mais dor de cabeça
 // (tamanho, revalidação) do que ganho, e o cache HTTP normal já cobre isso.
 
-const VERSION = "myde-v4";
+const VERSION = "myde-v5";
 const SHELL_CACHE = `${VERSION}-shell`;
 const ASSET_CACHE = `${VERSION}-assets`;
 
@@ -48,14 +48,27 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-function isCacheableAsset(url) {
+// Capa, ROM e ícone nunca mudam de conteúdo debaixo do mesmo nome de arquivo
+// (cada jogo novo ganha um arquivo novo) — cache-first é seguro e é o que dá
+// a sensação instantânea na segunda visita.
+function isImmutableAsset(url) {
   return (
     url.pathname.startsWith("/covers/") ||
     url.pathname.startsWith("/roms/") ||
-    url.pathname.startsWith("/icons/") ||
-    url.pathname.startsWith("/css/") ||
-    url.pathname.startsWith("/js/")
+    url.pathname.startsWith("/icons/")
   );
+}
+
+// css/js mudam a CADA deploy de código. Cache-first puro aqui já deixou
+// visitante recorrente preso num library.js velho depois de um deploy — a
+// tela carregava, mas os botões novos (ex.: o ícone de ver todos os jogos)
+// não faziam nada, porque o JS debaixo do HTML novo ainda era o de antes.
+// stale-while-revalidate: serve o que tem em cache na hora (mesma
+// velocidade), mas já dispara a busca da versão nova em paralelo e atualiza
+// o cache — a PRÓXIMA carga já vem corrigida sozinha, sem precisar lembrar
+// de trocar o VERSION a cada deploy.
+function isRevalidatingAsset(url) {
+  return url.pathname.startsWith("/css/") || url.pathname.startsWith("/js/");
 }
 
 self.addEventListener("fetch", (event) => {
@@ -77,7 +90,7 @@ self.addEventListener("fetch", (event) => {
   }
 
   // Assets imutáveis: serve do cache na hora, busca na rede só se faltar.
-  if (isCacheableAsset(url)) {
+  if (isImmutableAsset(url)) {
     event.respondWith(
       caches.match(req).then((hit) => {
         if (hit) return hit;
@@ -89,6 +102,26 @@ self.addEventListener("fetch", (event) => {
           return res;
         });
       })
+    );
+    return;
+  }
+
+  // css/js: serve do cache na hora (rápido) e atualiza em segundo plano
+  // (correto na próxima carga), em vez de ficar preso numa versão só porque
+  // ninguém lembrou de trocar o VERSION.
+  if (isRevalidatingAsset(url)) {
+    event.respondWith(
+      caches.open(ASSET_CACHE).then((cache) =>
+        cache.match(req).then((hit) => {
+          const network = fetch(req)
+            .then((res) => {
+              if (res && res.ok) cache.put(req, res.clone());
+              return res;
+            })
+            .catch(() => hit);
+          return hit || network;
+        })
+      )
     );
     return;
   }
