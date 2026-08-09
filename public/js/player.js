@@ -29,12 +29,21 @@
   if (CFG.gamepad) window.EJS_VirtualGamepadSettings = CFG.gamepad;
 
   // Menu do EmulatorJS por padrão é feito pra quem desenvolve/testa core, não
-  // pra quem abriu um link de QR code pra jogar 2 minutos. Tira o que é
-  // opção técnica ou duplicada (Quick Save/Load fazem a mesma coisa que Save
-  // State/Load State, só sem ícone — apareciam como uma segunda entrada
-  // repetida no menu). "Context Menu" não é possível esconder: o próprio
-  // EmulatorJS ignora override nesse botão (buildButtonOptions, checado na
-  // fonte antes de mexer aqui).
+  // pra quem abriu um link de QR code pra jogar 2 minutos — e muito menos pra
+  // uma criança (Fase 11: "só o básico necessário"). Fica só o que qualquer
+  // pessoa reconhece de cara: play/pause, mudo, ajustes (com 1 opção só —
+  // ver EJS_hideSettings), tela cheia, salvar e carregar. O resto:
+  // - Quick Save/Load: mesma coisa que Save State/Load State, só sem ícone.
+  // - cheat/cacheManager/saveSavFiles/loadSavFiles/screenshot/screenRecord/
+  //   diskButton/gamepad: recurso técnico ou de quem testa core, não de
+  //   quem só quer jogar.
+  // - volumeSlider: um mudo (on/off) já resolve; controle fino de volume é
+  //   o do próprio aparelho.
+  // - exitEmulation: duplicava a setinha "voltar" que já existe sempre
+  //   visível no canto — duas formas diferentes de "sair" é confuso.
+  // "Context Menu" não é possível esconder: o próprio EmulatorJS ignora
+  // override nesse botão (buildButtonOptions, checado na fonte antes de
+  // mexer aqui).
   window.EJS_Buttons = {
     cheat: false,
     cacheManager: false,
@@ -46,11 +55,49 @@
     quickSave: false,
     quickLoad: false,
     gamepad: false, // "Configurações do Controle" — remapeia controle físico; o app já tem o virtual pronto
+    volumeSlider: false,
+    exitEmulation: false,
+    // O botão de Ajustes (engrenagem) abre bem mais que os itens fixos que
+    // dá pra esconder um por um: testando esta fase apareceu uma categoria
+    // inteira "Backend Core Options" com DEZENAS de opções técnicas do core
+    // específico daquele console (region, zapper, filtro NTSC, RAM state
+    // etc.) — gerada dinamicamente por core, muda de plataforma pra
+    // plataforma, e não dá pra listar/esconder cada uma com confiança (35
+    // plataformas, cada uma com seu próprio core). Escondendo a engrenagem
+    // inteira em vez de tentar aparar item por item — mais simples e
+    // garante "só o básico" de verdade em qualquer plataforma.
+    settings: false,
   };
 
-  // Idem pro submenu "Ajustes": troca de core, threads, shader e FPS/VSync
-  // são ajuste de quem está testando o emulador, não de quem só quer jogar.
-  window.EJS_hideSettings = ["retroarch_core", "ejs_threads", "shader", "webgl2Enabled", "fps", "vsync", "videoRotation"];
+  // Mantido como reforço, caso "Ajustes" volte a aparecer por algum outro
+  // caminho no futuro (custom button, etc.) — não é mais o que garante a
+  // simplicidade hoje, isso é o settings:false acima.
+  window.EJS_hideSettings = [
+    "retroarch_core", "ejs_threads", "shader", "webgl2Enabled", "fps", "vsync", "videoRotation",
+    "disk",
+    "screenshotSource", "screenshotFormat", "screenshotUpscale",
+    "screenRecordFPS", "screenRecordFormat", "screenRecordUpscale", "screenRecordVideoBitrate", "screenRecordAudioBitrate",
+    "fastForward", "ff-ratio", "slowMotion", "sm-ratio",
+    "rewindEnabled", "rewind-granularity",
+    "menubarBehavior", "keyboardInput", "altKeyboardInput", "lockMouse",
+    "save-state-slot", "save-state-location", "save-save-interval",
+    "virtual-gamepad", "menu-bar-button",
+  ];
+
+  // Achado testando esta fase: esconder uma opção via EJS_hideSettings não
+  // só tira ela da tela — pula também a linha que aplica o valor padrão
+  // dela (addToMenu em emulator.js retorna cedo se o id está em
+  // hideSettings, antes de chegar no this.menuOptionChanged(id,
+  // defaultOption) que grava o padrão de verdade). Sem isso,
+  // "save-state-location" escondido ficava undefined, e o botão Salvar caía
+  // no branch de baixar arquivo em vez de gravar no IndexedDB do navegador
+  // — ou seja, "Salvar" não salvava nada de verdade. EJS_defaultOptions é o
+  // jeito documentado de fixar um valor padrão que funciona mesmo com a
+  // opção escondida (aplicado incondicionalmente perto do fim da montagem
+  // do menu de ajustes, sem passar pelo gate de hideSettings).
+  window.EJS_defaultOptions = {
+    "save-state-location": "browser",
+  };
 
   // Sem tela de espera própria (Fase 10): o jogo sobe sozinho assim que o
   // core e a ROM terminam de baixar — EJS_startOnLoaded faz o EmulatorJS
@@ -244,13 +291,101 @@
     setTimeout(silenceStartupWorkarounds, 12000);
   };
 
-  window.EJS_onSaveState = function () {
-    console.log("[retro] save state gravado — " + CFG.id);
-  };
+  // De propósito SEM window.EJS_onSaveState / window.EJS_onLoadState.
+  //
+  // Achado testando esta fase: registrar esses dois hooks NÃO é só "avisa
+  // depois que salvou" — o próprio EmulatorJS usa `callEvent(...).length`
+  // pra decidir se "alguém de fora assumiu" aquele evento, e se assumiu
+  // (called > 0) ele CANCELA a própria gravação em disco/IndexedDB antes de
+  // chegar nela (visto na fonte, addButton do saveState/loadState em
+  // emulator.js: "const called = this.callEvent(...); if (called > 0)
+  // return;"). Ou seja: só de ter esses dois `window.EJS_on*` definidos
+  // (mesmo que só pra um console.log) o "Salvar"/"Carregar" do EmulatorJS
+  // parava de gravar de verdade. Corrigido não registrando esses hooks —
+  // o feedback (toast) agora vem de perto do clique nos nossos botões
+  // abaixo, não de um evento que troca o comportamento de salvar.
 
-  window.EJS_onLoadState = function () {
-    console.log("[retro] save state carregado — " + CFG.id);
-  };
+  // ------------------------------------------------------------------
+  // botões grandes de Salvar/Carregar (Fase 11)
+  //
+  // O menu do EmulatorJS já tem Save State/Load State, mas fica dentro de
+  // uma barra que aparece e some sozinha (só mostra com toque/mouse perto
+  // da borda, e some depois de alguns segundos) — nada óbvio pra quem não
+  // já usou um emulador antes, muito menos pra uma criança. Estes dois
+  // botões ficam sempre visíveis e clicam nos botões REAIS do EmulatorJS
+  // por baixo (via elements.bottomBar, a mesma referência que o próprio
+  // EmulatorJS usa pra si — não é reimplementar a lógica de salvar, é só
+  // apertar o botão de verdade por fora), então herdam qualquer
+  // comportamento dele automaticamente (tela de troca de local de save,
+  // etc.) sem duplicar nada.
+  // ------------------------------------------------------------------
+
+  // Achado testando esta fase (nº 2): o botão real de Save State também
+  // tira uma screenshot da tela pra ilustrar o save antes de gravar
+  // (`await this.takeScreenshot(...)`, sem timeout nem tratamento de erro
+  // do lado do EmulatorJS) — coisa que a gente nem usa, já que não expõe
+  // navegador de múltiplos saves nenhum aqui. Forward-clicar nesse botão
+  // amarra o "Salvar" inteiro a essa captura: se ela travar ou demorar (viu
+  // acontecer aqui), o salvamento nem chega a rodar e ninguém sabe por quê
+  // — o oposto de "fácil e sem dificuldade". Por isso estes dois botões NÃO
+  // clicam no botão real — chamam a mesma gravação/leitura de baixo nível
+  // que ele usa por baixo dos panos (gameManager.getState()/loadState() +
+  // storage.states, os mesmos objetos que o próprio EmulatorJS usa pra se
+  // salvar — não é reinventar o formato do save, só pular a parte da
+  // screenshot que é só decorativa aqui).
+  var saveBtn = document.getElementById("quick-save");
+  var loadBtn = document.getElementById("quick-load");
+
+  function saveFileName() {
+    var emu = window.EJS_emulator;
+    return emu.getBaseFileName() + ".state";
+  }
+
+  if (saveBtn) {
+    saveBtn.addEventListener("click", function () {
+      var emu = window.EJS_emulator;
+      if (!emu || !emu.gameManager) return;
+      try {
+        var state = emu.gameManager.getState();
+        emu.storage.states.put(saveFileName(), state);
+        showToast("💾 Jogo salvo!");
+      } catch (e) {
+        showToast("⚠️ Não deu pra salvar, tenta de novo");
+      }
+    });
+  }
+  if (loadBtn) {
+    loadBtn.addEventListener("click", function () {
+      var emu = window.EJS_emulator;
+      if (!emu || !emu.gameManager) return;
+      emu.storage.states.get(saveFileName()).then(function (state) {
+        if (!state) {
+          showToast("Nenhum save salvo ainda");
+          return;
+        }
+        emu.gameManager.loadState(state);
+        showToast("▶️ Continuando de onde parou");
+      }).catch(function () {
+        showToast("⚠️ Não deu pra carregar, tenta de novo");
+      });
+    });
+  }
+
+  var toastTimer = null;
+  function showToast(text) {
+    var el = document.getElementById("save-toast");
+    if (!el) return;
+    el.textContent = text;
+    el.hidden = false;
+    el.classList.remove("save-toast--in");
+    void el.offsetWidth;
+    el.classList.add("save-toast--in");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () {
+      el.classList.remove("save-toast--in");
+      setTimeout(function () { el.hidden = true; }, 260);
+    }, 2000);
+  }
 
   // ------------------------------------------------------------------
   // o toque que destrava tela cheia/paisagem

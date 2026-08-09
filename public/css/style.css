@@ -422,6 +422,16 @@ button {
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+  animation: tab-panel-in 0.26s cubic-bezier(0.2, 0.7, 0.15, 1);
+}
+
+@keyframes tab-panel-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab-panel { animation: none; }
 }
 
 #panel-jogos.tab-panel {
@@ -437,6 +447,32 @@ button {
   grid-template-columns: repeat(2, 1fr);
   gap: 10px;
   padding: 4px 2px 20px;
+}
+
+/* Entrada em cascata — cada tile aparece um instante depois do anterior,
+   em vez de tudo pipocar de uma vez. Cara de launcher de console de
+   verdade (PS5/Switch fazem o mesmo na grade de jogos). Só nos primeiros
+   12: depois disso a diferença de atraso já não se nota e não vale gastar
+   seletor pra cada item de uma grade grande. */
+.console-tile {
+  opacity: 0;
+  animation: tile-in 0.32s cubic-bezier(0.2, 0.7, 0.15, 1) forwards;
+}
+.consoles-grid .console-tile:nth-child(1) { animation-delay: 0.02s; }
+.consoles-grid .console-tile:nth-child(2) { animation-delay: 0.06s; }
+.consoles-grid .console-tile:nth-child(3) { animation-delay: 0.1s; }
+.consoles-grid .console-tile:nth-child(4) { animation-delay: 0.14s; }
+.consoles-grid .console-tile:nth-child(5) { animation-delay: 0.18s; }
+.consoles-grid .console-tile:nth-child(6) { animation-delay: 0.22s; }
+.consoles-grid .console-tile:nth-child(n+7) { animation-delay: 0.26s; }
+
+@keyframes tile-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .console-tile { animation: none; opacity: 1; }
 }
 
 @media (min-width: 560px) {
@@ -484,6 +520,7 @@ button {
 
 .console-tile:hover,
 .console-tile.is-nav-focused {
+  transform: translateY(-2px);
   box-shadow: 0 0 0 2px var(--accent, var(--live-accent)),
     0 0 30px -6px color-mix(in srgb, var(--accent, var(--live-accent)) 70%, transparent);
 }
@@ -495,7 +532,16 @@ button {
   z-index: 1;
 }
 
-.console-tile-icon { font-size: 1.3rem; }
+.console-tile-icon {
+  width: 26px;
+  height: 26px;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.6));
+}
+
+.console-tile-icon svg {
+  width: 100%;
+  height: 100%;
+}
 
 .console-tile-label {
   font-size: 0.82rem;
@@ -1014,6 +1060,78 @@ button {
   text-decoration: none;
   font-size: 1.1rem;
   backdrop-filter: blur(4px);
+}
+
+/* Salvar/Carregar sempre visíveis (Fase 11) — o menu do EmulatorJS já tem
+   isso, mas escondido numa barra que só aparece com toque perto da borda e
+   some sozinha; ninguém leigo acha isso de primeira. Ao lado da setinha de
+   voltar, mesma altura, pra formar um grupo único de "ações" no canto. */
+.quick-actions {
+  position: absolute;
+  top: max(10px, env(safe-area-inset-top));
+  left: 56px;
+  z-index: 20;
+  display: flex;
+  gap: 6px;
+}
+
+.quick-action-btn {
+  height: 36px;
+  padding: 0 12px 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(20, 20, 28, 0.75);
+  color: #fff;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  backdrop-filter: blur(4px);
+  transition: transform 0.14s ease, background 0.18s ease;
+}
+
+.quick-action-btn svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+}
+
+.quick-action-btn:active {
+  transform: scale(0.94);
+  background: color-mix(in srgb, var(--live-accent) 30%, rgba(20, 20, 28, 0.75));
+}
+
+@media (max-width: 380px) {
+  /* Tela bem estreita: ícone só, sem o texto, pra não brigar de espaço
+     com a setinha de voltar e o badge de carregamento. */
+  .quick-action-btn span { display: none; }
+  .quick-action-btn { width: 36px; padding: 0; justify-content: center; }
+}
+
+.save-toast {
+  position: absolute;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-8px);
+  z-index: 35;
+  padding: 9px 18px;
+  border-radius: 999px;
+  background: rgba(20, 20, 28, 0.92);
+  border: 1px solid color-mix(in srgb, var(--live-accent) 55%, transparent);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 800;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.26s ease, transform 0.26s cubic-bezier(0.2, 0.7, 0.15, 1);
+}
+
+.save-toast--in {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }
 
 .load-badge {

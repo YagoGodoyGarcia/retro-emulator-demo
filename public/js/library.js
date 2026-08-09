@@ -662,7 +662,30 @@
   // existente, sem duplicar a lógica de filtro).
   // -------------------------------------------------------------------
 
-  var PLATFORM_ICON = { NES: "🕹️", SNES: "🎮", "MEGA DRIVE": "💙", GBA: "🟣" };
+  // Ícones em SVG (traço único, sem emoji) — cara de launcher de verdade em
+  // vez de emoji, que renderiza diferente (e às vezes feio) em cada
+  // sistema. Agrupado por família de hardware, não por console 1-a-1: dá
+  // pra cobrir as 35 plataformas do catálogo sem desenhar 35 ícones —
+  // cartucho (portáteis/consoles de cartucho), disco (CD/DVD) e controle
+  // genérico (arcade, computador doméstico, o resto) cobrem o essencial.
+  var ICON_CARTRIDGE =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v6H5a2 2 0 0 0-2 2v9a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1v-9a2 2 0 0 0-2-2h-2V3"/><path d="M9 3v6M15 3v6M9 14v4M13 14v4M17 14v4"/></svg>';
+  var ICON_HANDHELD =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="3"/><rect x="8.5" y="5" width="7" height="6" rx="0.5"/><circle cx="15" cy="16" r="1.1" fill="currentColor" stroke="none"/><circle cx="9" cy="16" r="1.1" fill="currentColor" stroke="none"/></svg>';
+  var ICON_DISC =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.6"/></svg>';
+  var ICON_PAD =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="11" rx="5.5"/><path d="M7 10.5v4M5 12.5h4"/><circle cx="16" cy="10.5" r="1" fill="currentColor" stroke="none"/><circle cx="18.5" cy="13" r="1" fill="currentColor" stroke="none"/></svg>';
+
+  var PLATFORM_ICON_FAMILY = {
+    nes: ICON_CARTRIDGE, snes: ICON_CARTRIDGE, n64: ICON_CARTRIDGE, nds: ICON_CARTRIDGE,
+    gb: ICON_HANDHELD, gba: ICON_HANDHELD, ngp: ICON_HANDHELD, ws: ICON_HANDHELD, lynx: ICON_HANDHELD, vb: ICON_HANDHELD,
+    segaCD: ICON_DISC, segaSaturn: ICON_DISC, psx: ICON_DISC, psp: ICON_DISC, "3do": ICON_DISC, pcfx: ICON_DISC, dos: ICON_DISC,
+  };
+
+  function iconForCore(core) {
+    return PLATFORM_ICON_FAMILY[core] || ICON_PAD;
+  }
 
   function buildConsolesGrid() {
     var grid = document.getElementById("consoles-grid");
@@ -695,7 +718,7 @@
       btn.style.setProperty("--art", "url('" + sample.querySelector(".tile-img").src + "')");
       btn.style.setProperty("--accent", getComputedStyle(sample).getPropertyValue("--accent") || "var(--brand)");
       btn.innerHTML =
-        '<span class="console-tile-icon">' + (PLATFORM_ICON[group.label] || "🎮") + "</span>" +
+        '<span class="console-tile-icon">' + iconForCore(core) + "</span>" +
         '<span class="console-tile-label">' + group.label + "</span>" +
         '<span class="console-tile-count">' + group.tiles.length + (group.tiles.length === 1 ? " jogo" : " jogos") + "</span>";
       btn.addEventListener("click", function () {
