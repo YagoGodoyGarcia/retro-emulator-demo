@@ -15,8 +15,25 @@ import { upload } from "https://esm.sh/@vercel/blob@2.7.0/client";
 const PLATFORMS = window.__PLATFORMS__ || [];
 const BLOB_READY = window.__BLOB_READY__ === true;
 
+// Extensão -> plataforma, só quando a extensão pertence a uma única
+// plataforma. Várias plataformas de archive (arcade, mame, dos) usam
+// ".zip" — se essa extensão apontasse pra uma só (a última declarada em
+// lib/platforms.js "ganhava" por sobrescrita), um romset zipado de outra
+// plataforma era auto-detectado errado e ia pro core errado (ex.: ROM de
+// NDS zipada virando "MS-DOS", que falha ao tentar montar o zip como
+// disco). Extensão ambígua cai em "needs-platform" — o mesmo fluxo de
+// escolha manual que já existe pra extensão desconhecida.
 const EXT_TO_PLATFORM = {};
-PLATFORMS.forEach((p) => (p.extensions || []).forEach((ext) => { EXT_TO_PLATFORM[ext] = p.id; }));
+const EXT_PLATFORM_COUNT = {};
+PLATFORMS.forEach((p) =>
+  (p.extensions || []).forEach((ext) => {
+    EXT_PLATFORM_COUNT[ext] = (EXT_PLATFORM_COUNT[ext] || 0) + 1;
+    EXT_TO_PLATFORM[ext] = p.id;
+  })
+);
+Object.keys(EXT_PLATFORM_COUNT).forEach((ext) => {
+  if (EXT_PLATFORM_COUNT[ext] > 1) delete EXT_TO_PLATFORM[ext];
+});
 
 function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, (c) => ({
