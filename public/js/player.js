@@ -28,6 +28,19 @@
   window.EJS_backgroundColor = "#000000";
   if (CFG.gamepad) window.EJS_VirtualGamepadSettings = CFG.gamepad;
 
+  // Reportado ao vivo: depois de um tempo jogando, a página ficava lenta e
+  // recarregava sozinha (sintoma de crash de aba por pressão de memória).
+  // WebGL2 no Safari/iOS tem bug documentado e recorrente de perda de
+  // contexto e crescimento de memória até derrubar a aba — acontece em
+  // vários projetos sem relação nenhuma com este (Flutter, Unity, o
+  // próprio Emscripten), não é bug daqui. Nenhum jogo de console retro
+  // (arte 2D em pixel) precisa de recurso nenhum exclusivo do WebGL2 — usar
+  // o core "legado" (WebGL1) evita esse caminho problemático inteiro, sem
+  // perda perceptível de nada. `forceLegacyCores` é mais direto que tentar
+  // desligar via a opção "webgl2Enabled": ele nem deixa o WebGL2 entrar em
+  // consideração, em vez de configurar pra não usar.
+  window.EJS_forceLegacyCores = true;
+
   // Menu do EmulatorJS por padrão é feito pra quem desenvolve/testa core, não
   // pra quem abriu um link de QR code pra jogar 2 minutos — e muito menos pra
   // uma criança (Fase 11: "só o básico necessário"). Fica só o que qualquer
@@ -232,7 +245,10 @@
   // está de fato rodando, e troca por um único listener de visibilitychange
   // — o áudio só volta a suspender sozinho quando a aba sai e volta de
   // background, não a cada input do jogador.
+  var workaroundsSilenced = false;
   function silenceStartupWorkarounds() {
+    if (workaroundsSilenced) return; // trava — ver o timeout de segurança logo abaixo, que também chama isto
+    workaroundsSilenced = true;
     startupEvents.forEach(function (evt) {
       document.removeEventListener(evt, resumeAudio, { capture: true });
     });
@@ -244,6 +260,17 @@
       if (document.visibilityState === "visible") resumeAudio();
     });
   }
+
+  // Trava de segurança independente do EJS_onGameStart: se por algum motivo
+  // o jogo nunca disparar "start" (core que falha ao subir, ROM que trava
+  // antes do primeiro frame etc.), os listeners de toque + o MutationObserver
+  // do document.body inteiro (childList/subtree/characterData — dispara a
+  // cada toque no controle virtual, que troca classe CSS a cada
+  // pressionar/soltar) continuariam rodando pra sempre, sem o desligamento
+  // normal de 12s depois do início. 20s aqui é só o teto — em uso normal
+  // quem desliga primeiro é sempre o EJS_onGameStart, isto é rede de
+  // segurança, não o caminho esperado.
+  setTimeout(silenceStartupWorkarounds, 20000);
 
   // ------------------------------------------------------------------
   // pular a tela de abertura
