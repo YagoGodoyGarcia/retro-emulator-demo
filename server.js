@@ -415,7 +415,11 @@ app.get("/play/:keyId", requireAccess, async (req, res) => {
     title: cfg.title,
     gameUrl: cfg.gameUrl,
     cdn: EJS_CDN_URL,
-    gamepad: VIRTUAL_GAMEPAD[cfg.core] || null,
+    // `gamepad` no keychains.json escolhe uma variante de controle (ex.
+    // "segaMD6" pra jogo de luta que usa os 6 botões) sem mexer em código —
+    // mesma ideia do GAMEURL_ por variável de ambiente. Cai pro layout padrão
+    // do console se não tiver, ou se apontar pra uma chave que não existe.
+    gamepad: VIRTUAL_GAMEPAD[cfg.gamepad] || VIRTUAL_GAMEPAD[cfg.core] || null,
     skipIntro: cfg.skipIntro !== false,
   };
 
@@ -767,23 +771,46 @@ app.post(
   }
 );
 
-app.patch("/admin/api/games/:id", requireAdmin, async (req, res) => {
-  try {
-    const game = await libraryStore.get(req.params.id);
-    if (!game) return res.status(404).json({ error: "não encontrado" });
+app.patch(
+  "/admin/api/games/:id",
+  requireAdmin,
+  uploadMiddleware.fields([{ name: "cover", maxCount: 1 }]),
+  async (req, res) => {
+    try {
+      const game = await libraryStore.get(req.params.id);
+      if (!game) return res.status(404).json({ error: "não encontrado" });
 
-    const { title, genre, tags } = gameEntry.buildGameUpdate(req.body);
-    const updated = { ...game, title, genre, tags };
-    await libraryStore.put(updated);
-    res.json({ game: updated });
-  } catch (err) {
-    if (err instanceof gameEntry.ValidationError) {
-      return res.status(400).json({ error: err.message });
+      const newCoverFile = req.files && req.files.cover && req.files.cover[0];
+      const { title, genre, tags, coverExt } = gameEntry.buildGameUpdate(req.body, newCoverFile);
+
+      const updated = { ...game, title, genre, tags };
+
+      if (coverExt) {
+        if (!blob.canUpload) {
+          return res.status(503).json({ error: "Upload desligado neste ambiente — configure o Vercel Blob." });
+        }
+        const coverFilename = `${game.gameId}${coverExt}`;
+        updated.cover = await blob.upload("covers", coverFilename, newCoverFile.buffer, newCoverFile.mimetype);
+        updated.coverFilename = coverFilename;
+        // Apaga a capa antiga só depois do upload da nova dar certo, e só se
+        // o nome mudou (extensão diferente) — senão apagaria o arquivo que
+        // acabou de substituir a si mesmo.
+        if (game.coverFilename && game.coverFilename !== coverFilename) {
+          await blob.remove("covers", game.coverFilename, game.cover);
+        }
+      }
+
+      await libraryStore.put(updated);
+      res.json({ game: updated });
+    } catch (err) {
+      if (err instanceof gameEntry.ValidationError) {
+        return res.status(400).json({ error: err.message });
+      }
+      console.error("[admin] falha ao editar jogo:", err.message);
+      res.status(500).json({ error: "Falha ao salvar. Tenta de novo." });
     }
-    console.error("[admin] falha ao editar jogo:", err.message);
-    res.status(500).json({ error: "Falha ao salvar. Tenta de novo." });
   }
-});
+);
 
 app.delete("/admin/api/games/:id", requireAdmin, async (req, res) => {
   try {

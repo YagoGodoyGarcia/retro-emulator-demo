@@ -103,7 +103,9 @@ Adicione uma entrada em `config/keychains.json`:
 }
 ```
 
-`core` aceita `nes`, `snes`, `gba` ou `segaMD`. `cover` é o nome do arquivo em
+`core` aceita `nes`, `snes`, `gba` ou `segaMD`. Opcionalmente, `"gamepad": "segaMD6"`
+troca o controle de 3 pros 6 botões (X/Y/Z) do Mega Drive — útil pra jogo de
+luta; sem esse campo usa o padrão dos 3 botões do console. `cover` é o nome do arquivo em
 `public/covers/`. `featured: true` promove o jogo a destaque na vitrine.
 
 ### Pelo painel `/admin`

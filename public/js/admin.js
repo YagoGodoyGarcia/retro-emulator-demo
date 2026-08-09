@@ -171,6 +171,8 @@
               '<input class="field" type="text" data-edit-title value="' + escapeHtml(g.title) + '" maxlength="60" placeholder="Título" />' +
               '<input class="field" type="text" data-edit-genre value="' + escapeHtml(g.genre || "") + '" maxlength="40" placeholder="Gênero" />' +
               '<input class="field" type="text" data-edit-tags value="' + escapeHtml((g.tags || []).join(", ")) + '" placeholder="Temas, separados por vírgula" />' +
+              '<label class="file-field"><span>Nova capa (opcional)</span>' +
+              '<input type="file" data-edit-cover accept="image/*" /></label>' +
               "</div>" +
               '<p class="form-error" data-edit-error hidden></p>' +
               '<div class="game-card-actions">' +
@@ -274,21 +276,31 @@
         var id = saveBtn.dataset.saveGame;
         var card = saveBtn.closest(".game-card");
         var errorEl = card.querySelector("[data-edit-error]");
-        var payload = {
-          title: card.querySelector("[data-edit-title]").value.trim(),
-          genre: card.querySelector("[data-edit-genre]").value.trim(),
-          tags: card.querySelector("[data-edit-tags]").value,
-        };
+        var coverInput = card.querySelector("[data-edit-cover]");
+
+        var MAX_COVER = 1.5 * 1024 * 1024;
+        if (coverInput.files[0] && coverInput.files[0].size > MAX_COVER) {
+          errorEl.textContent = "Capa maior que " + fmtBytes(MAX_COVER) + ".";
+          errorEl.hidden = false;
+          return;
+        }
+
+        var payload = new FormData();
+        payload.append("title", card.querySelector("[data-edit-title]").value.trim());
+        payload.append("genre", card.querySelector("[data-edit-genre]").value.trim());
+        payload.append("tags", card.querySelector("[data-edit-tags]").value);
+        if (coverInput.files[0]) payload.append("cover", coverInput.files[0]);
 
         errorEl.hidden = true;
         saveBtn.disabled = true;
         saveBtn.textContent = "Salvando...";
 
+        // Sem Content-Type manual: o navegador monta o boundary do
+        // multipart sozinho a partir do FormData.
         fetch("/admin/api/games/" + encodeURIComponent(id), {
           method: "PATCH",
           credentials: "same-origin",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+          body: payload,
         })
           .then(function (r) {
             return r.json().then(function (data) { return { ok: r.ok, data: data }; });
