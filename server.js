@@ -12,6 +12,8 @@ const gameEntry = require("./lib/game-entry");
 const library = require("./lib/library-service");
 const platforms = require("./lib/platforms");
 const romHashLib = require("./lib/rom-hash");
+const blobUploadPolicy = require("./lib/blob-upload-policy");
+const { handleUpload: handleBlobUpload } = require("@vercel/blob/client");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -675,6 +677,47 @@ app.delete("/admin/api/tokens/:id", requireAdmin, async (req, res) => {
 const uploadMiddleware = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: Math.max(gameEntry.MAX_ROM_BYTES, gameEntry.MAX_COVER_BYTES) + 64 * 1024 },
+});
+
+// ---------------------------------------------------------------------------
+// Upload direto do navegador pro Vercel Blob (Fase 4 do plano de
+// biblioteca) — pro fluxo de upload em massa que vem a seguir, onde a ROM
+// não pode passar pelo corpo desta function (a Vercel limita ~4.5MB por
+// requisição de function comum). Coexiste com o POST /admin/api/games de
+// baixo, que continua sendo o caminho de upload único e o único que
+// funciona em dev local (grava em disco sem precisar de Blob real).
+//
+// Só faz sentido com BLOB_READ_WRITE_TOKEN configurado — sem isso não tem
+// como emitir token de verdade pro Blob, e local dev não tem esse token
+// (usa o fallback de disco do fluxo antigo).
+// ---------------------------------------------------------------------------
+
+app.post("/admin/api/blob/upload-token", requireAdmin, async (req, res) => {
+  if (!blob.durable) {
+    return res.status(503).json({
+      error: "Upload direto pro Blob indisponível — configure BLOB_READ_WRITE_TOKEN na Vercel.",
+    });
+  }
+  try {
+    const jsonResponse = await handleBlobUpload({
+      body: req.body,
+      request: req,
+      onBeforeGenerateToken: async (pathname, clientPayload) => {
+        const { allowedContentTypes, maximumSizeInBytes } = blobUploadPolicy.reviewUploadRequest(
+          pathname,
+          clientPayload
+        );
+        return { allowedContentTypes, maximumSizeInBytes, addRandomSuffix: false };
+      },
+    });
+    res.json(jsonResponse);
+  } catch (err) {
+    if (err instanceof blobUploadPolicy.BlobUploadError) {
+      return res.status(400).json({ error: err.message });
+    }
+    console.error("[blob] falha ao emitir token de upload:", err.message);
+    res.status(400).json({ error: err.message });
+  }
 });
 
 app.get("/admin/api/games", requireAdmin, async (req, res) => {
