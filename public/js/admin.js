@@ -537,4 +537,59 @@
 
     loadGames();
   }
+
+  // -------------------------------------------------------------------
+  // "Verificar biblioteca" (Fase 9) — cruza catálogo x Blob de verdade.
+  // -------------------------------------------------------------------
+
+  var ISSUE_LABEL = {
+    "missing-rom": "sem ROM",
+    "missing-cover": "sem capa",
+    "unknown-platform": "plataforma desconhecida",
+    "broken-rom-url": "URL da ROM quebrada",
+    "broken-cover-url": "URL da capa quebrada",
+    "orphan-rom": "ROM órfã no Blob (sem jogo apontando pra ela)",
+    "orphan-cover": "capa órfã no Blob (sem jogo apontando pra ela)",
+    "duplicate-hash": "ROM duplicada (mesmo hash de outro jogo)",
+  };
+
+  var scanBtn = document.getElementById("scan-btn");
+  var scanResult = document.getElementById("scan-result");
+  if (scanBtn && scanResult) {
+    scanBtn.addEventListener("click", function () {
+      scanBtn.disabled = true;
+      scanBtn.textContent = "Verificando...";
+      fetch("/admin/api/library/scan", { credentials: "same-origin" })
+        .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+        .then(function (res) {
+          if (!res.ok) {
+            scanResult.innerHTML = '<p class="form-error">' + escapeHtml((res.data && res.data.error) || "Falha ao verificar.") + "</p>";
+            return;
+          }
+          var issues = res.data.issues || [];
+          if (!issues.length) {
+            scanResult.innerHTML = '<p class="panel-note" style="margin-top:10px">Tudo certo — nenhum problema encontrado' +
+              (res.data.blobChecked ? "" : " (checagem de arquivo órfão/quebrado no Blob pulada — sem token configurado)") +
+              ".</p>";
+            return;
+          }
+          scanResult.innerHTML =
+            '<p class="panel-note" style="margin-top:10px">' + issues.length + " problema(s) encontrado(s):</p>" +
+            "<ul class=\"system-list\">" +
+            issues.map(function (i) {
+              var label = ISSUE_LABEL[i.type] || i.type;
+              var who = i.title ? escapeHtml(i.title) + " (" + escapeHtml(i.gameId) + ")" : escapeHtml(i.pathname);
+              return "<li>" + who + " — " + label + "</li>";
+            }).join("") +
+            "</ul>";
+        })
+        .catch(function () {
+          scanResult.innerHTML = '<p class="form-error">Falha de rede. Tenta de novo.</p>';
+        })
+        .finally(function () {
+          scanBtn.disabled = false;
+          scanBtn.textContent = "Verificar biblioteca";
+        });
+    });
+  }
 })();
