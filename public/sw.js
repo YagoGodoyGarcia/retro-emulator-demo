@@ -8,7 +8,7 @@
 // pro navegador — resposta opaca de terceiro em cache dá mais dor de cabeça
 // (tamanho, revalidação) do que ganho, e o cache HTTP normal já cobre isso.
 
-const VERSION = "myde-v5";
+const VERSION = "myde-v6";
 const SHELL_CACHE = `${VERSION}-shell`;
 const ASSET_CACHE = `${VERSION}-assets`;
 
@@ -59,14 +59,15 @@ function isImmutableAsset(url) {
   );
 }
 
-// css/js mudam a CADA deploy de código. Cache-first puro aqui já deixou
-// visitante recorrente preso num library.js velho depois de um deploy — a
-// tela carregava, mas os botões novos (ex.: o ícone de ver todos os jogos)
-// não faziam nada, porque o JS debaixo do HTML novo ainda era o de antes.
-// stale-while-revalidate: serve o que tem em cache na hora (mesma
-// velocidade), mas já dispara a busca da versão nova em paralelo e atualiza
-// o cache — a PRÓXIMA carga já vem corrigida sozinha, sem precisar lembrar
-// de trocar o VERSION a cada deploy.
+// css/js mudam a CADA deploy de código. Já tentamos stale-while-revalidate
+// aqui (serve o cache na hora, atualiza em paralelo) e o resultado prático
+// foi pior que o problema: toda visita logo depois de um deploy rodava com
+// HTML novo + JS ainda VELHO por baixo — página carregava, jogo escolhido não
+// iniciava, ou iniciava com um bug já corrigido — e só a SEGUNDA carga (ou
+// uma guia anônima, sem cache nenhum) pegava a versão certa. Rede primeiro
+// resolve isso na raiz: sempre busca o arquivo atual quando há internet, e
+// só cai pro cache se a rede falhar (fica só o offline como motivo de usar
+// cache aqui, não velocidade).
 function isRevalidatingAsset(url) {
   return url.pathname.startsWith("/css/") || url.pathname.startsWith("/js/");
 }
@@ -106,22 +107,19 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // css/js: serve do cache na hora (rápido) e atualiza em segundo plano
-  // (correto na próxima carga), em vez de ficar preso numa versão só porque
-  // ninguém lembrou de trocar o VERSION.
+  // css/js: rede primeiro, sempre — mesmo raciocínio do HTML logo abaixo.
+  // Cache só entra como rede de segurança se a rede falhar (offline).
   if (isRevalidatingAsset(url)) {
     event.respondWith(
-      caches.open(ASSET_CACHE).then((cache) =>
-        cache.match(req).then((hit) => {
-          const network = fetch(req)
-            .then((res) => {
-              if (res && res.ok) cache.put(req, res.clone());
-              return res;
-            })
-            .catch(() => hit);
-          return hit || network;
+      fetch(req)
+        .then((res) => {
+          if (res && res.ok) {
+            const copy = res.clone();
+            caches.open(ASSET_CACHE).then((c) => c.put(req, copy));
+          }
+          return res;
         })
-      )
+        .catch(() => caches.match(req))
     );
     return;
   }
