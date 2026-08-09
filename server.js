@@ -417,16 +417,6 @@ app.get("/play/:keyId", requireAccess, async (req, res) => {
   <a href="/" class="back-btn" aria-label="Voltar pra biblioteca">&larr;</a>
   <div id="game" class="game-container"></div>
 
-  <div id="play-gate" class="play-gate">
-    <div class="play-gate-inner">
-      <img class="play-gate-cover" src="${escapeHtml(coverSrc(cfg))}" alt="" />
-      <button type="button" id="play-gate-btn" class="play-gate-btn" aria-label="Jogar">▶</button>
-      <div class="play-gate-title">${escapeHtml(cfg.title)}</div>
-      <div id="play-gate-hint" class="play-gate-hint">Toque para jogar</div>
-      <div id="play-gate-progress" class="play-gate-progress" hidden></div>
-    </div>
-  </div>
-
   <div id="rotate-hint" class="rotate-hint">🔄 Gire o celular pra jogar em paisagem</div>
 
   <script>window.__PLAY__ = ${jsonForScript(playConfig)};</script>

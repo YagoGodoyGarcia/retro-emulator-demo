@@ -1,17 +1,18 @@
-/* Player: configura o EmulatorJS, resolve o gesto de início (um toque só) e
-   pula a tela de abertura do jogo. Lê a config injetada em window.__PLAY__. */
+/* Player: configura o EmulatorJS pra iniciar sozinho ao carregar a página
+   (sem tela de "toque pra jogar" própria) e pula a tela de abertura do jogo.
+   Lê a config injetada em window.__PLAY__. */
 (function () {
   "use strict";
 
   var CFG = window.__PLAY__;
   if (!CFG) return;
 
-  var loadStartedAt = null;
+  var loadStartedAt = performance.now();
   var badge = document.getElementById("load-badge");
-  var gate = document.getElementById("play-gate");
-  var gateBtn = document.getElementById("play-gate-btn");
-  var hint = document.getElementById("play-gate-hint");
-  var progress = document.getElementById("play-gate-progress");
+  if (badge) {
+    badge.hidden = false;
+    badge.textContent = "carregando...";
+  }
 
   // ------------------------------------------------------------------
   // config do EmulatorJS
@@ -51,7 +52,13 @@
   // são ajuste de quem está testando o emulador, não de quem só quer jogar.
   window.EJS_hideSettings = ["retroarch_core", "ejs_threads", "shader", "webgl2Enabled", "fps", "vsync", "videoRotation"];
 
-  // De propósito SEM EJS_startOnLoaded — ver o comentário no clique do gate.
+  // Sem tela de espera própria (Fase 10): o jogo sobe sozinho assim que o
+  // core e a ROM terminam de baixar — EJS_startOnLoaded faz o EmulatorJS
+  // clicar no próprio botão de start internamente, sem esperar ninguém tocar
+  // em nada aqui. Tela cheia/paisagem exigem um gesto de verdade (ver "o
+  // toque que destrava tudo" mais abaixo) — sem gate, isso passa a acontecer
+  // no primeiro toque real de JOGO (d-pad, botão), não antes.
+  window.EJS_startOnLoaded = true;
 
   // ------------------------------------------------------------------
   // matar o "Click to resume Emulator"
@@ -62,15 +69,17 @@
   // pedindo mais um toque. O botão não tem NENHUM handler — ele é só um
   // pretexto pra arrancar do usuário o gesto que destrava o áudio.
   //
-  // Por que o contexto nasce suspenso mesmo com o nosso gate: o gesto real
-  // acontece no toque, mas o AudioContext só é criado lá na frente, depois
-  // do download do core e da ROM. Nessa altura a janela do gesto já fechou —
-  // não tem como o start "carregar" o gesto por 10 segundos de download.
+  // Por que o contexto nasce suspenso mesmo com um toque real em algum lugar
+  // da página: o AudioContext só é criado lá na frente, depois do download
+  // do core e da ROM. Nessa altura a janela do gesto já fechou — não tem
+  // como "carregar" um gesto por vários segundos de download.
   //
-  // A saída é não depender daquele toque: a gente registra todo AudioContext
-  // criado na página e religa todos no próximo toque real, que vai acontecer
-  // de qualquer jeito (no direcional, no A, em qualquer lugar). Aí o popup
-  // deixa de ter função e é substituído por uma versão silenciosa.
+  // A saída é não depender de nenhum toque específico: a gente registra todo
+  // AudioContext criado na página e religa todos no próximo toque real, que
+  // vai acontecer de qualquer jeito (no direcional, no A, em qualquer
+  // lugar). Aí o popup deixa de ter função e é substituído por uma versão
+  // silenciosa. Isso é inteiramente independente do EJS_startOnLoaded acima
+  // — resolvia esse popup mesmo quando o início dependia de um gate manual.
   // ------------------------------------------------------------------
 
   var audioContexts = [];
@@ -222,21 +231,12 @@
   // ciclo de vida
   // ------------------------------------------------------------------
 
-  function dismissGate() {
-    if (!gate || gate.classList.contains("play-gate--hidden")) return;
-    gate.classList.add("play-gate--hidden");
-    setTimeout(function () {
-      if (gate && gate.parentNode) gate.parentNode.removeChild(gate);
-    }, 320);
-  }
-
   window.EJS_onGameStart = function () {
-    var seconds = loadStartedAt ? ((performance.now() - loadStartedAt) / 1000).toFixed(1) : "?";
+    var seconds = ((performance.now() - loadStartedAt) / 1000).toFixed(1);
     if (badge) {
       badge.textContent = "pronto em " + seconds + "s";
       setTimeout(function () { badge.classList.add("load-badge--fade"); }, 2200);
     }
-    dismissGate();
     skipIntro();
     // 12s de folga sobre os até 10s que o checkStarted() do EmulatorJS ainda
     // pode ficar de olho no popup depois do jogo já ter "começado" — ver o
@@ -253,45 +253,24 @@
   };
 
   // ------------------------------------------------------------------
-  // o toque que destrava tudo
+  // o toque que destrava tela cheia/paisagem
   //
-  // Tela cheia, giro pra paisagem e áudio só funcionam dentro de um gesto
-  // real do usuário. EJS_startOnLoaded dispara um clique falso no load, o
-  // AudioContext nasce suspenso, e aí o próprio EmulatorJS abre um popup
-  // pedindo um SEGUNDO toque ("Click to resume Emulator") — era esse o bug.
-  // Aqui o botão nativo dele fica escondido no CSS e a gente repassa o
-  // clique de verdade, então tudo acontece dentro do mesmo gesto.
+  // Diferente do áudio (que religa em QUALQUER toque, sempre — ver acima),
+  // tela cheia e trava de orientação exigem ser chamadas DENTRO da pilha de
+  // um gesto de verdade, sincronamente. Sem gate dedicado, esse gesto passa
+  // a ser o primeiro toque real no jogo (d-pad, botão) — a pessoa já ia
+  // tocar aí pra jogar de qualquer forma, então não é um toque a mais, só
+  // deixa de ser um toque EXTRA numa tela própria antes do jogo aparecer.
+  // Só dispara uma vez; depois disso o jogo já está em tela cheia/paisagem
+  // (ou o navegador recusou, e não adianta insistir a cada toque).
   // ------------------------------------------------------------------
 
   var canFullscreen = !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
-  var isStandalone =
-    window.navigator.standalone === true ||
-    (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches);
+  var immersiveRequested = false; // um listener por tipo de evento dispara "once" cada um — sem essa trava, o primeiro toque real de tipos diferentes (ex.: pointerdown e depois keydown) chamaria isto duas vezes.
 
-  if (hint && canFullscreen && !isStandalone) {
-    hint.textContent = "Toque para jogar em tela cheia";
-  }
-
-  function forwardStartClick(attempt) {
-    var realBtn = document.querySelector(".ejs_start_button");
-    if (realBtn) {
-      realBtn.click();
-      return;
-    }
-    attempt = attempt || 0;
-    if (attempt > 120) {
-      if (hint) hint.textContent = "Não foi possível carregar. Recarregue a página.";
-      if (gateBtn) {
-        gateBtn.disabled = false;
-        gateBtn.textContent = "↻";
-      }
-      console.warn("[retro] botão de start do EmulatorJS não apareceu");
-      return;
-    }
-    setTimeout(function () { forwardStartClick(attempt + 1); }, 100);
-  }
-
-  function start() {
+  function requestImmersive() {
+    if (immersiveRequested) return;
+    immersiveRequested = true;
     var el = document.documentElement;
     if (canFullscreen) {
       try {
@@ -309,24 +288,11 @@
     if ("wakeLock" in navigator) {
       navigator.wakeLock.request("screen").catch(function () {});
     }
-
-    if (gateBtn) {
-      gateBtn.textContent = "";
-      gateBtn.disabled = true;
-      gateBtn.classList.add("is-loading");
-    }
-    if (hint) hint.textContent = "Preparando o jogo...";
-    if (progress) progress.hidden = false;
-    if (badge) {
-      badge.hidden = false;
-      badge.textContent = "carregando...";
-    }
-    loadStartedAt = performance.now();
-
-    forwardStartClick();
   }
 
-  if (gate) gate.addEventListener("click", start, { once: true });
+  startupEvents.forEach(function (evt) {
+    document.addEventListener(evt, requestImmersive, { capture: true, passive: true, once: true });
+  });
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", function () {
