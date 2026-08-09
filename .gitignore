@@ -1,2 +1,7 @@
 node_modules/
 .env
+
+# ROMs próprias pra teste local (ex.: um dump legal de um cartucho seu).
+# Nunca sobem pro repositório nem pro deploy público — ver "ROM local" no
+# README, seção "Trocar a ROM sem mexer em código".
+public/roms/private/

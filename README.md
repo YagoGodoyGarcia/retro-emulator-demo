@@ -401,6 +401,38 @@ Duas formas:
    `A-Z0-9` virando `_`. Também dá pra trocar a CDN do EmulatorJS via
    `EMULATORJS_CDN_URL` (ver `.env.example`).
 
+### ROM local (a sua, que você tem o direito de usar)
+
+Este repositório é **público** e o `main` sobe pro deploy público na Vercel
+automaticamente a cada push. Isso significa que **nada** que for commitado
+aqui — em qualquer branch — fica privado: vira baixável por qualquer um via
+GitHub, indexável, e potencialmente publicado num preview da Vercel também.
+Por isso ROM comercial nunca entra no repositório, mesmo quando é uma cópia
+sua de um jogo que você comprou: "eu tenho o cartucho" dá direito de jogar a
+sua cópia, não de publicá-la pra qualquer pessoa que abrir o link.
+
+Pra jogar uma ROM sua **só na sua máquina**, sem publicar nada:
+
+1. Solte o arquivo em `public/roms/private/` — essa pasta está no
+   `.gitignore`, então `git status` nunca vai mostrar ela como alteração.
+2. Edite o seu `config/keychains.json` **local** e acrescente uma entrada
+   apontando pra ela, ex.:
+   ```json
+   "meu-jogo": {
+     "core": "segaMD",
+     "gameUrl": "/roms/private/meu-jogo.bin",
+     "gameId": "meu-jogo",
+     "title": "Meu Jogo",
+     "genre": "Ação",
+     "cover": "meu-jogo.png",
+     "tags": []
+   }
+   ```
+3. Rode `npm start` e jogue local. **Não dê `git add`/`commit` nesse
+   arquivo** — ele é rastreado pelo git, então essa edição fica como uma
+   alteração pendente no seu `git status` até você decidir descartá-la
+   (`git checkout -- config/keychains.json`) ou mantê-la sempre local.
+
 ## Como o save state funciona
 
 O EmulatorJS salva automaticamente no **IndexedDB do navegador** (nada de
