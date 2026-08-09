@@ -493,12 +493,16 @@ app.get("/admin", async (req, res) => {
       <h2>Biblioteca</h2>
       <p class="panel-note" style="margin-bottom:10px">
         <strong>${allGames.length}</strong> jogo(s) ·
-        <strong>${platforms.list().length}</strong> plataforma(s) ·
+        <strong>${Object.keys(byPlatform).length}</strong> plataforma(s) com jogo ·
+        <strong>${platforms.list().length}</strong> plataforma(s) suportada(s) ·
         <strong>${reviewCount}</strong> em revisão ·
         <strong>${missingCoverCount}</strong> sem capa
       </p>
       <div class="chip-row">
-        ${platforms.list().map((p) => `<span class="chip">${escapeHtml(p.label)} · ${byPlatform[p.id] || 0}</span>`).join("")}
+        ${platforms.list()
+          .filter((p) => byPlatform[p.id])
+          .map((p) => `<span class="chip">${escapeHtml(p.label)} · ${byPlatform[p.id]}</span>`)
+          .join("")}
       </div>
       <button type="button" class="btn--ghost" id="scan-btn" style="margin-top:12px">Verificar biblioteca</button>
       <div id="scan-result"></div>
@@ -702,7 +706,9 @@ app.get("/admin/import", (req, res) => {
   </div>
   <script>
     window.__PLATFORMS__ = ${jsonForScript(platforms.list().map((p) => ({ id: p.id, label: p.label, extensions: p.extensions })))};
-    window.__IMPORT_LIMITS__ = ${jsonForScript(blobUploadPolicy.ROM_SIZE_LIMITS)};
+    window.__IMPORT_LIMITS__ = ${jsonForScript(
+      Object.fromEntries(platforms.list().map((p) => [p.id, p.maxRomBytes]))
+    )};
     window.__BLOB_READY__ = ${blob.durable ? "true" : "false"};
   </script>
   <script type="module" src="/js/import.js"></script>

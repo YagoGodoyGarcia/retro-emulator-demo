@@ -21,11 +21,12 @@ test("parseTags respeita o limite de 12 tags", () => {
 });
 
 test("CORES vem de lib/platforms.js (sem variantes de controle tipo segaMD6)", () => {
-  assert.deepEqual(gameEntry.CORES, ["nes", "snes", "gba", "segaMD"]);
+  ["nes", "snes", "gba", "segaMD"].forEach((id) => assert.ok(gameEntry.CORES.includes(id)));
+  assert.equal(gameEntry.CORES.includes("segaMD6"), false);
 });
 
 test("CORE_EXTENSIONS bate com o mapeamento de plataformas", () => {
-  assert.deepEqual(gameEntry.CORE_EXTENSIONS.segaMD, [".bin", ".md", ".gen"]);
+  assert.deepEqual(gameEntry.CORE_EXTENSIONS.segaMD, [".bin", ".md", ".gen", ".smd"]);
   assert.deepEqual(gameEntry.CORE_EXTENSIONS.nes, [".nes"]);
 });
 
