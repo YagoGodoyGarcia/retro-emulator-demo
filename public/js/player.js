@@ -69,32 +69,33 @@
     settings: false,
   };
 
-  // Mantido como reforço, caso "Ajustes" volte a aparecer por algum outro
-  // caminho no futuro (custom button, etc.) — não é mais o que garante a
-  // simplicidade hoje, isso é o settings:false acima.
-  window.EJS_hideSettings = [
-    "retroarch_core", "ejs_threads", "shader", "webgl2Enabled", "fps", "vsync", "videoRotation",
-    "disk",
-    "screenshotSource", "screenshotFormat", "screenshotUpscale",
-    "screenRecordFPS", "screenRecordFormat", "screenRecordUpscale", "screenRecordVideoBitrate", "screenRecordAudioBitrate",
-    "fastForward", "ff-ratio", "slowMotion", "sm-ratio",
-    "rewindEnabled", "rewind-granularity",
-    "menubarBehavior", "keyboardInput", "altKeyboardInput", "lockMouse",
-    "save-state-slot", "save-state-location", "save-save-interval",
-    "virtual-gamepad", "menu-bar-button",
-  ];
-
-  // Achado testando esta fase: esconder uma opção via EJS_hideSettings não
-  // só tira ela da tela — pula também a linha que aplica o valor padrão
-  // dela (addToMenu em emulator.js retorna cedo se o id está em
-  // hideSettings, antes de chegar no this.menuOptionChanged(id,
-  // defaultOption) que grava o padrão de verdade). Sem isso,
-  // "save-state-location" escondido ficava undefined, e o botão Salvar caía
-  // no branch de baixar arquivo em vez de gravar no IndexedDB do navegador
-  // — ou seja, "Salvar" não salvava nada de verdade. EJS_defaultOptions é o
-  // jeito documentado de fixar um valor padrão que funciona mesmo com a
-  // opção escondida (aplicado incondicionalmente perto do fim da montagem
-  // do menu de ajustes, sem passar pelo gate de hideSettings).
+  // SEM EJS_hideSettings — de propósito, depois de dois bugs de verdade.
+  //
+  // addToMenu() em emulator.js (a função que monta cada linha do menu de
+  // Ajustes) retorna CEDO se o id está em hideSettings — ANTES de chegar
+  // na parte que aplica o padrão (this.menuOptionChanged) E antes de
+  // registrar o listener que liga aquela opção ao efeito real dela
+  // (settings["id"] -> handleSpecialOptions -> a função que efetivamente
+  // faz a coisa acontecer). Ou seja, esconder uma opção não é só tirar ela
+  // da tela: pode quebrar o comportamento por trás dela de verdade, sem
+  // erro nenhum no console.
+  //
+  // Dois casos reais encontrados testando esta fase:
+  // 1. "save-state-location" escondido → nunca aplicava o padrão →
+  //    "Salvar" caía no fluxo de baixar arquivo em vez de gravar no
+  //    navegador. "Salvar" não salvava nada de verdade.
+  // 2. "virtual-gamepad" escondido → o listener que chama
+  //    toggleVirtualGamepad() nunca era registrado → d-pad e botões
+  //    NUNCA apareciam em aparelho de toque. Reproduzido de verdade num
+  //    iPhone: jogo carregava, sem controle nenhum na tela, impossível
+  //    jogar. EJS_defaultOptions sozinho NÃO bastou pra esse — ele muda o
+  //    que getSettingValue() lê, mas não religa um listener que nunca foi
+  //    registrado.
+  //
+  // Como o botão de Ajustes inteiro já está escondido (EJS_Buttons.settings
+  // acima), ninguém alcança esse menu de qualquer forma — hideSettings não
+  // cumpre mais função de simplificar nada, só carregava esse risco. Mais
+  // seguro não usar.
   window.EJS_defaultOptions = {
     "save-state-location": "browser",
   };
