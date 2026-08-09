@@ -14,6 +14,7 @@ const platforms = require("./lib/platforms");
 const romHashLib = require("./lib/rom-hash");
 const blobUploadPolicy = require("./lib/blob-upload-policy");
 const libraryScan = require("./lib/library-scan");
+const playStats = require("./lib/play-stats");
 const { handleUpload: handleBlobUpload } = require("@vercel/blob/client");
 
 const app = express();
@@ -182,11 +183,17 @@ async function requireAccess(req, res, next) {
 
 app.get("/", requireAccess, async (req, res) => {
   const allGames = await library.getPublishedGames();
-  // Os destaques abrem a vitrine — é o primeiro card que o usuário vê ao
-  // chegar. O resto mantém a ordem do config.
+  const plays = await playStats.getCounts(allGames.map((g) => g.gameId));
+  // Destaque continua abrindo a vitrine primeiro — é um slot editorial, não
+  // uma métrica. Dentro de cada grupo (destaque / resto), ordena por
+  // jogadas: quem foi mais escolhido pelas pessoas sobe.
   const entries = allGames
     .slice()
-    .sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0));
+    .sort((a, b) => {
+      const featuredDiff = (b.featured ? 1 : 0) - (a.featured ? 1 : 0);
+      if (featuredDiff) return featuredDiff;
+      return (plays[b.gameId] || 0) - (plays[a.gameId] || 0);
+    });
 
   const coresPresent = [...new Set(entries.map((cfg) => cfg.core))];
   const chips = ["all", ...coresPresent]
@@ -376,6 +383,10 @@ app.get("/play/:keyId", requireAccess, async (req, res) => {
       body: `<ul class="system-list">${known}</ul><p><a href="/">&larr; voltar</a></p>`,
     });
   }
+
+  // Não bloqueia o carregamento da página por causa disso — é só contagem
+  // pra ordenar a home por popularidade depois.
+  playStats.increment(keyId).catch(() => {});
 
   const playConfig = {
     id: keyId,
