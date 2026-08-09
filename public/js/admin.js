@@ -136,4 +136,113 @@
 
   load();
   setInterval(load, 20000); // mantém o "em uso agora" fresco
+
+  // -------------------------------------------------------------------
+  // adicionar jogo (upload de ROM)
+  // -------------------------------------------------------------------
+
+  var gameForm = document.getElementById("game-form");
+  var gameList = document.getElementById("game-list");
+  if (gameForm && gameList) {
+    var gameError = document.getElementById("game-error");
+    var gameSubmit = document.getElementById("game-submit");
+
+    function fmtBytes(n) {
+      if (n > 1024 * 1024) return (n / 1024 / 1024).toFixed(1) + "MB";
+      return Math.round(n / 1024) + "KB";
+    }
+
+    function renderGames(games) {
+      if (!games.length) {
+        gameList.innerHTML = '<p class="admin-empty">Nenhum jogo adicionado por aqui ainda.</p>';
+        return;
+      }
+      gameList.innerHTML = games
+        .map(function (g) {
+          return (
+            '<div class="game-card">' +
+            '<div class="game-thumb"><img src="' + escapeHtml(g.cover) + '" alt="" loading="lazy" /></div>' +
+            '<div class="game-card-title">' + escapeHtml(g.title) + "</div>" +
+            '<div class="game-card-meta">' + escapeHtml(g.core) + "</div>" +
+            '<div class="game-card-actions">' +
+            '<a class="btn--ghost" href="/play/' + encodeURIComponent(g.gameId) + '" target="_blank" rel="noopener">Abrir</a>' +
+            '<button type="button" class="btn--danger" data-delete-game="' + escapeHtml(g.gameId) + '">Apagar</button>' +
+            "</div></div>"
+          );
+        })
+        .join("");
+    }
+
+    function loadGames() {
+      fetch("/admin/api/games", { credentials: "same-origin" })
+        .then(function (r) { return r.status === 401 ? null : r.json(); })
+        .then(function (data) { if (data) renderGames(data.games); })
+        .catch(function () {
+          gameList.innerHTML = '<p class="admin-empty">Falha ao carregar. Recarregue a página.</p>';
+        });
+    }
+
+    gameForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      gameError.hidden = true;
+
+      var romInput = document.getElementById("game-rom");
+      var coverInput = document.getElementById("game-cover");
+      var rom = romInput.files[0];
+      var cover = coverInput.files[0];
+
+      // Confere o tamanho no navegador antes de gastar upload — o servidor
+      // confere de novo (nunca confia só no lado do cliente).
+      var MAX_ROM = 4 * 1024 * 1024;
+      var MAX_COVER = 1.5 * 1024 * 1024;
+      if (rom && rom.size > MAX_ROM) {
+        gameError.textContent = "ROM maior que " + fmtBytes(MAX_ROM) + ".";
+        gameError.hidden = false;
+        return;
+      }
+      if (cover && cover.size > MAX_COVER) {
+        gameError.textContent = "Capa maior que " + fmtBytes(MAX_COVER) + ".";
+        gameError.hidden = false;
+        return;
+      }
+
+      gameSubmit.disabled = true;
+      gameSubmit.textContent = "Enviando...";
+
+      var body = new FormData(gameForm);
+      fetch("/admin/api/games", { method: "POST", credentials: "same-origin", body: body })
+        .then(function (r) {
+          return r.json().then(function (data) { return { ok: r.ok, data: data }; });
+        })
+        .then(function (res) {
+          if (!res.ok) {
+            gameError.textContent = (res.data && res.data.error) || "Falha ao adicionar o jogo.";
+            gameError.hidden = false;
+            return;
+          }
+          gameForm.reset();
+          loadGames();
+        })
+        .catch(function () {
+          gameError.textContent = "Falha de rede. Tenta de novo.";
+          gameError.hidden = false;
+        })
+        .finally(function () {
+          gameSubmit.disabled = false;
+          gameSubmit.textContent = "Adicionar à biblioteca";
+        });
+    });
+
+    gameList.addEventListener("click", function (e) {
+      var el = e.target.closest("[data-delete-game]");
+      if (!el) return;
+      if (!confirm('Apagar "' + el.dataset.deleteGame + '" de vez? O arquivo some do ar também.')) return;
+      fetch("/admin/api/games/" + encodeURIComponent(el.dataset.deleteGame), {
+        method: "DELETE",
+        credentials: "same-origin",
+      }).then(loadGames);
+    });
+
+    loadGames();
+  }
 })();

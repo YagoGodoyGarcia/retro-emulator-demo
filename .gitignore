@@ -1,7 +1,9 @@
 node_modules/
 .env
 
-# ROMs próprias pra teste local (ex.: um dump legal de um cartucho seu).
-# Nunca sobem pro repositório nem pro deploy público — ver "ROM local" no
-# README, seção "Trocar a ROM sem mexer em código".
+# ROMs próprias pra teste local (ex.: um dump legal de um cartucho seu) e o
+# que o formulário de upload do admin grava quando roda sem Vercel Blob
+# configurado. Nunca sobem pro repositório nem pro deploy público — ver "ROM
+# local" no README.
 public/roms/private/
+public/covers/private/

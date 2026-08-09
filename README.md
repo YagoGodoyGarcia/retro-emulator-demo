@@ -26,14 +26,17 @@ Abre em `http://localhost:3000`.
 - `GET /` — a vitrine.
 - `GET /play/:id` — o player em tela cheia. `id` desconhecido cai num 404 listando os válidos.
 - `GET /t/:token` — resgate do link de convite; vincula ao aparelho e manda pra vitrine.
-- `GET /admin` — painel pra gerar/gerenciar os links (pede senha).
-- `GET /api/keychains` — o catálogo em JSON, útil pra debug.
+- `GET /admin` — painel pra gerar/gerenciar os links e adicionar jogos (pede senha).
+- `GET /api/keychains` — o catálogo em JSON (estático + o que o admin subiu), útil pra debug.
 
 Arquivos que importam: `server.js` (rotas + HTML), `lib/access.js` (cookies,
-vínculo, sessão), `lib/store.js` (onde os links ficam), `public/js/library.js`
-(vitrine), `public/js/player.js` (player), `public/js/admin.js` (painel),
-`lib/gamepad.js` (layout do controle virtual), `public/sw.js` (cache/PWA),
-`config/keychains.json` (catálogo).
+vínculo, sessão), `lib/store.js` (onde os links ficam), `lib/library-store.js`
+(catálogo dos jogos que o admin sobe), `lib/blob.js` (onde o arquivo da ROM/capa
+fica), `lib/game-entry.js` (validação do upload), `lib/redis.js` (cliente REST
+compartilhado), `public/js/library.js` (vitrine), `public/js/player.js`
+(player), `public/js/admin.js` (painel), `lib/gamepad.js` (layout do controle
+virtual), `public/sw.js` (cache/PWA), `config/keychains.json` (catálogo
+estático).
 
 ## Acesso por link exclusivo
 
@@ -67,6 +70,43 @@ Gera os links, mostra o QR pronto pra imprimir, e acompanha o estado de cada
 um: `nunca usado` → `ativado` → `em uso agora` (sinal de vida a cada 60s).
 Dá pra **copiar o link**, **baixar o QR** (PNG), **religar** (soltar o
 aparelho), **revogar** (corta o acesso na hora) e **apagar**.
+
+### Adicionar jogo (upload de ROM) pelo painel
+
+Segunda seção do `/admin`: título, gênero, console, temas, arquivo da ROM e
+capa — sem editar `config/keychains.json` nem fazer deploy. Aparece na
+vitrine, no `/api/keychains` e em `/play/:id` assim que o upload termina.
+
+**Por que isso precisa do Vercel Blob.** O filesystem da Vercel é só leitura
+fora de `/tmp`, e `/tmp` não sobrevive nem a um cold start — gravar em
+`public/roms/` dali não funciona, e fingir que funciona seria pior que não
+ter a função (o arquivo sumiria no primeiro redeploy, ou nem apareceria pras
+outras instâncias serverless enquanto isso). Por isso o upload sobe pro
+[Vercel Blob](https://vercel.com/docs/storage/vercel-blob) quando
+`BLOB_READ_WRITE_TOKEN` está configurado (Storage → Create Database → Blob no
+projeto — a variável é preenchida sozinha) e **fica desligado** — form
+desabilitado na tela, e a rota recusa com 503 mesmo se alguém chamar a API
+direto — quando não está. Local (`npm start`) sempre funciona, mesmo sem
+token: grava em `public/roms/private/` e `public/covers/private/`, que
+ficam de fora do git.
+
+O catálogo dos jogos adicionados (título, core, tags — os metadados, não o
+arquivo) mora no mesmo Redis dos links de acesso (`lib/library-store.js`,
+mesmo padrão memória-local/Redis-produção do `lib/store.js`).
+
+**Limites:**
+- ROM até 4MB, capa até 1.5MB — folga sob o teto de 4.5MB que a Vercel impõe
+  pro corpo de uma function serverless comum (plataforma, não é escolha
+  nossa). ROM maior que isso, use "ROM local" acima em vez do upload.
+- Extensão precisa bater com o console escolhido (`.nes`, `.sfc`/`.smc`,
+  `.gba`, `.bin`/`.md`/`.gen`).
+- **Checkbox de direitos é obrigatório.** Mesma regra de sempre: o
+  repositório e o deploy são públicos, então qualquer upload aqui vira
+  distribuição pública na hora — precisa ser homebrew, domínio público, ou
+  algo que você mesmo tem o direito de redistribuir.
+- Apagar um jogo adicionado por aqui remove o arquivo (Blob ou disco local) e
+  a entrada do catálogo — só jogos vindos deste formulário; a base de 53 jogos
+  do `config/keychains.json` não passa por essa rota.
 
 ### Ligando de verdade (3 variáveis)
 
@@ -532,7 +572,7 @@ aparência espalha os botões pro lugar errado.
 
 ## Checklist de validação
 
-Rodado automaticamente (Playwright/Node) a cada alteração, sete conjuntos:
+Rodado automaticamente (Playwright/Node) a cada alteração, nove conjuntos:
 
 **Interface** — layout sem rolagem em 320x568 / 360x740 / 390x844 / 844x390 /
 1280x800, zero erro de JS, busca temática e ranking (incluindo "mario" e
@@ -562,6 +602,20 @@ versão antiga no `activate`; CSS/JS fazem stale-while-revalidate (primeira
 resposta vem do cache, a segunda carga já vem atualizada); capas/ROMs/ícones
 continuam cache-first puro sem gastar rede à toa; `/admin`, `/t/` e `/api/`
 nunca passam pelo cache.
+
+**Upload de jogo** (`check-admin-upload.js`) — checkbox de direitos é
+obrigatório (validação nativa do formulário), extensão errada pro console
+escolhido é recusada pelo servidor, ROM acima do limite nem chega a ser
+enviada, upload válido aparece no painel + `/api/keychains` + `/play/:id`,
+arquivo é gravado de fato em `public/roms/private/` (fallback sem Blob), e
+apagar remove dos três lugares (painel, catálogo, disco).
+
+**Upload sem Blob configurado** (`check-admin-upload-blocked.js`) — sobe um
+processo à parte do `server.js` com `VERCEL=1` e sem `BLOB_READ_WRITE_TOKEN`
+(não dá pra testar contra o Blob real neste ambiente — rede bloqueada pro
+`blob.vercel-storage.com`), confirma que o painel mostra o aviso e desliga o
+formulário, e que a rota `POST /admin/api/games` recusa com 503 mesmo
+chamada direto por fetch, contornando a UI.
 
 **Acesso** — admin pede senha e recusa senha errada, API do admin bloqueada
 sem sessão, geração de link com QR, primeiro aparelho entra, segundo aparelho
@@ -613,3 +667,11 @@ lenta).
 O que só dá pra confirmar com o CDN acessível: o core WASM carregando, o
 tempo real de abertura, e se o "pular abertura" acerta o timing em cada
 título.
+
+O mesmo proxy bloqueia `blob.vercel-storage.com`, então o **upload de ROM
+nunca subiu de fato pro Vercel Blob real** neste ambiente — só o fallback de
+disco local (dev) foi exercitado ponta a ponta, e o caminho "sem Blob
+configurado em produção" foi provado com um processo simulando `VERCEL=1`
+(`check-admin-upload-blocked.js`). Depois de configurar
+`BLOB_READ_WRITE_TOKEN` na Vercel, vale confirmar manualmente que um upload
+de verdade completa e que o jogo abre a partir da URL do Blob.

@@ -2,10 +2,14 @@ require("dotenv").config();
 
 const express = require("express");
 const path = require("path");
+const multer = require("multer");
 const QRCode = require("qrcode");
 const keychainsConfig = require("./config/keychains.json");
 const store = require("./lib/store");
 const access = require("./lib/access");
+const libraryStore = require("./lib/library-store");
+const blob = require("./lib/blob");
+const gameEntry = require("./lib/game-entry");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -23,7 +27,10 @@ const CORE_FILE = {
   segaMD: "genesis_plus_gx",
 };
 
-function loadKeychains() {
+// O catálogo estático (config/keychains.json, versionado no repo) mais o que
+// o admin subiu depois (lib/library-store.js — dinâmico, porque escrever no
+// JSON em produção não é possível: filesystem só-leitura na Vercel).
+async function loadKeychains() {
   const parsed = { ...keychainsConfig };
   delete parsed._comment;
 
@@ -37,7 +44,23 @@ function loadKeychains() {
       gameUrl: process.env[envKey] || cfg.gameUrl,
     };
   }
+
+  let uploaded = [];
+  try {
+    uploaded = await libraryStore.list();
+  } catch (err) {
+    console.error("[library] falha ao listar jogos do admin:", err.message);
+  }
+  for (const cfg of uploaded) keychains[cfg.gameId] = cfg;
+
   return keychains;
+}
+
+// cover pode ser um nome de arquivo local ("jogo.png", vira /covers/jogo.png)
+// ou uma URL completa (Vercel Blob, upload do admin em produção) — essa é
+// usada como está.
+function coverSrc(cfg) {
+  return /^https?:\/\//.test(cfg.cover) ? cfg.cover : `/covers/${encodeURIComponent(cfg.cover)}`;
 }
 
 function escapeHtml(str) {
@@ -199,8 +222,8 @@ async function requireAccess(req, res, next) {
 // GET / — a vitrine
 // ---------------------------------------------------------------------------
 
-app.get("/", requireAccess, (req, res) => {
-  const keychains = loadKeychains();
+app.get("/", requireAccess, async (req, res) => {
+  const keychains = await loadKeychains();
   // Os destaques abrem a vitrine — é o primeiro card que o usuário vê ao
   // chegar. O resto mantém a ordem do config.
   const entries = Object.entries(keychains).sort(
@@ -237,9 +260,9 @@ app.get("/", requireAccess, (req, res) => {
         data-console-label="${escapeHtml(style.label)}"
         data-rom="${escapeHtml(cfg.gameUrl)}"
         data-core-url="${escapeHtml(coreUrl)}"
-        style="--accent:${style.accent};--art:url('/covers/${encodeURIComponent(cfg.cover)}')"
+        style="--accent:${style.accent};--art:url('${escapeHtml(coverSrc(cfg))}')"
         aria-label="${escapeHtml(cfg.title)}"
-      ><img class="tile-img" src="/covers/${encodeURIComponent(cfg.cover)}" alt="" ${i < 3 ? 'fetchpriority="high"' : 'loading="lazy"'} draggable="false" />${badge}</button>`;
+      ><img class="tile-img" src="${escapeHtml(coverSrc(cfg))}" alt="" ${i < 3 ? 'fetchpriority="high"' : 'loading="lazy"'} draggable="false" />${badge}</button>`;
     })
     .join("\n");
 
@@ -362,17 +385,17 @@ app.post("/api/heartbeat", async (req, res) => {
   res.json({ ok: true });
 });
 
-app.get("/api/keychains", (req, res) => {
-  res.json(loadKeychains());
+app.get("/api/keychains", async (req, res) => {
+  res.json(await loadKeychains());
 });
 
 // ---------------------------------------------------------------------------
 // GET /play/:id — o player
 // ---------------------------------------------------------------------------
 
-app.get("/play/:keyId", requireAccess, (req, res) => {
+app.get("/play/:keyId", requireAccess, async (req, res) => {
   const { keyId } = req.params;
-  const keychains = loadKeychains();
+  const keychains = await loadKeychains();
   const cfg = keychains[keyId];
 
   if (!cfg) {
@@ -413,7 +436,7 @@ app.get("/play/:keyId", requireAccess, (req, res) => {
 
   <div id="play-gate" class="play-gate">
     <div class="play-gate-inner">
-      <img class="play-gate-cover" src="/covers/${encodeURIComponent(cfg.cover)}" alt="" />
+      <img class="play-gate-cover" src="${escapeHtml(coverSrc(cfg))}" alt="" />
       <button type="button" id="play-gate-btn" class="play-gate-btn" aria-label="Jogar">▶</button>
       <div class="play-gate-title">${escapeHtml(cfg.title)}</div>
       <div id="play-gate-hint" class="play-gate-hint">Toque para jogar</div>
@@ -492,6 +515,15 @@ app.get("/admin", (req, res) => {
         "perde a sessão a cada deploy. Defina um valor fixo e longo.</div>"
     );
   }
+  if (!blob.canUpload) {
+    warnings.push(
+      '<div class="banner banner--warn"><strong>Upload de ROM desligado.</strong> ' +
+        "Na Vercel o disco é só leitura — sem um lugar durável pra guardar o arquivo, subir um " +
+        "jogo aqui e ele sumir no próximo deploy seria pior que não ter a função. Ative o " +
+        "<strong>Vercel Blob</strong> (aba Storage do projeto → Create Database → Blob) — a " +
+        "variável <code>BLOB_READ_WRITE_TOKEN</code> é adicionada sozinha.</div>"
+    );
+  }
 
   res.send(`<!DOCTYPE html>
 <html lang="pt-BR">
@@ -520,6 +552,48 @@ app.get("/admin", (req, res) => {
     </div>
 
     <div class="token-list" id="token-list"></div>
+
+    <div class="panel">
+      <h2>Adicionar jogo</h2>
+      <p class="panel-note">
+        ROM até ${(gameEntry.MAX_ROM_BYTES / 1024 / 1024).toFixed(1)}MB
+        (${gameEntry.CORES.join(", ")}) + capa até ${(gameEntry.MAX_COVER_BYTES / 1024 / 1024).toFixed(1)}MB.
+        Sem ROM comercial: o repositório e este deploy são públicos, então qualquer
+        upload aqui vira distribuição pública na hora — homebrew, domínio público ou
+        algo que você mesmo tem o direito de redistribuir.
+      </p>
+      <form id="game-form" ${blob.canUpload ? "" : "aria-disabled=\"true\""}>
+        <div class="field-row">
+          <input class="field" id="game-title" name="title" type="text" placeholder="Título" maxlength="60" required ${blob.canUpload ? "" : "disabled"} />
+          <input class="field" id="game-genre" name="genre" type="text" placeholder="Gênero (ex: Plataforma)" maxlength="40" ${blob.canUpload ? "" : "disabled"} />
+        </div>
+        <div class="field-row">
+          <select class="field" id="game-core" name="core" required ${blob.canUpload ? "" : "disabled"}>
+            <option value="" disabled selected>Console</option>
+            ${gameEntry.CORES.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml((CORE_STYLE[c] || DEFAULT_CORE_STYLE).label)}</option>`).join("")}
+          </select>
+          <input class="field" id="game-tags" name="tags" type="text" placeholder="Temas, separados por vírgula (ex: espaço, guerra)" ${blob.canUpload ? "" : "disabled"} />
+        </div>
+        <div class="field-row">
+          <label class="file-field">
+            <span>Arquivo da ROM</span>
+            <input type="file" id="game-rom" name="rom" required ${blob.canUpload ? "" : "disabled"} />
+          </label>
+          <label class="file-field">
+            <span>Capa (imagem)</span>
+            <input type="file" id="game-cover" name="cover" accept="image/*" required ${blob.canUpload ? "" : "disabled"} />
+          </label>
+        </div>
+        <label class="check-row">
+          <input type="checkbox" id="game-rights" name="confirmRights" required ${blob.canUpload ? "" : "disabled"} />
+          <span>Confirmo que tenho o direito de distribuir esse arquivo publicamente (é homebrew, domínio público, ou eu possuo os direitos de redistribuição para este uso).</span>
+        </label>
+        <button class="btn" id="game-submit" type="submit" ${blob.canUpload ? "" : "disabled"}>Adicionar à biblioteca</button>
+        <p class="form-error" id="game-error" hidden></p>
+      </form>
+    </div>
+
+    <div class="game-list" id="game-list"></div>
   </div>
   <script src="/js/admin.js" defer></script>
 </body>
@@ -627,6 +701,87 @@ app.delete("/admin/api/tokens/:id", requireAdmin, async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// ADMIN — upload de jogo
+// ---------------------------------------------------------------------------
+
+// Em memória (não no disco): o destino final é o Blob ou, em dev local, o
+// filesystem — nenhum dos dois precisa de um arquivo temporário no meio.
+// O limite aqui é só uma rede de segurança grosseira contra requisição gigante
+// consumir memória à toa; a validação fina (tamanho por tipo, extensão por
+// core) é o game-entry.js, depois que o arquivo já está em mãos.
+const uploadMiddleware = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: Math.max(gameEntry.MAX_ROM_BYTES, gameEntry.MAX_COVER_BYTES) + 64 * 1024 },
+});
+
+app.get("/admin/api/games", requireAdmin, async (req, res) => {
+  try {
+    const games = await libraryStore.list();
+    games.sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
+    res.json({ games, canUpload: blob.canUpload });
+  } catch (err) {
+    console.error("[admin] falha ao listar jogos:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post(
+  "/admin/api/games",
+  requireAdmin,
+  uploadMiddleware.fields([
+    { name: "rom", maxCount: 1 },
+    { name: "cover", maxCount: 1 },
+  ]),
+  async (req, res) => {
+    if (!blob.canUpload) {
+      return res.status(503).json({
+        error: "Upload desligado neste ambiente — configure o Vercel Blob (aviso no topo do painel).",
+      });
+    }
+    try {
+      const files = {
+        rom: req.files && req.files.rom && req.files.rom[0],
+        cover: req.files && req.files.cover && req.files.cover[0],
+      };
+
+      // Todo id em uso, estático ou já subido antes, pra não colidir.
+      const staticIds = new Set(Object.keys(keychainsConfig).filter((k) => k !== "_comment"));
+      const uploadedGames = await libraryStore.list();
+      uploadedGames.forEach((g) => staticIds.add(g.gameId));
+
+      const { romFilename, coverFilename, entry } = gameEntry.buildGameEntry(req.body, files, staticIds);
+
+      const gameUrl = await blob.upload("roms", romFilename, files.rom.buffer, files.rom.mimetype);
+      const cover = await blob.upload("covers", coverFilename, files.cover.buffer, files.cover.mimetype);
+
+      const game = { ...entry, gameUrl, cover, romFilename, coverFilename, addedAt: Date.now() };
+      await libraryStore.put(game);
+      res.json({ game });
+    } catch (err) {
+      if (err instanceof gameEntry.ValidationError) {
+        return res.status(400).json({ error: err.message });
+      }
+      console.error("[admin] falha ao adicionar jogo:", err.message);
+      res.status(500).json({ error: "Falha ao salvar o jogo. Tenta de novo." });
+    }
+  }
+);
+
+app.delete("/admin/api/games/:id", requireAdmin, async (req, res) => {
+  try {
+    const game = await libraryStore.get(req.params.id);
+    if (!game) return res.status(404).json({ error: "não encontrado" });
+    await blob.remove("roms", game.romFilename, game.gameUrl);
+    await blob.remove("covers", game.coverFilename, game.cover);
+    await libraryStore.remove(req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[admin] falha ao apagar jogo:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
 
 app.use((req, res) => {
   systemPage(res, 404, {
@@ -636,10 +791,27 @@ app.use((req, res) => {
   });
 });
 
+// Erro do multer (arquivo maior que o limite, campo inesperado) não passa
+// pelo try/catch da rota — cai direto aqui. Sem isso o Express devolveria a
+// página de erro HTML padrão dele pra uma chamada que o admin.js espera
+// como JSON.
+app.use((err, req, res, next) => {
+  if (err && err.name === "MulterError") {
+    const message =
+      err.code === "LIMIT_FILE_SIZE"
+        ? "Arquivo maior que o limite. Veja o tamanho máximo no painel."
+        : `Falha no upload: ${err.message}`;
+    return res.status(400).json({ error: message });
+  }
+  console.error("[server] erro não tratado:", err);
+  res.status(500).json({ error: "Erro interno." });
+});
+
 if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`MYDE rodando em http://localhost:${PORT}`);
     console.log(`  acesso: ${access.ACCESS_MODE} | tokens: ${store.durable ? "redis" : "memória"} | admin: ${access.adminConfigured ? "on" : "sem ADMIN_PASSWORD"}`);
+    console.log(`  upload de jogo: ${blob.durable ? "vercel blob" : blob.canUpload ? "disco local (dev)" : "desligado (sem BLOB_READ_WRITE_TOKEN na Vercel)"}`);
   });
 }
 
