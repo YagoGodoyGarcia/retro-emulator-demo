@@ -152,20 +152,41 @@
       return Math.round(n / 1024) + "KB";
     }
 
+    var currentGames = [];
+    var editingId = null;
+
     function renderGames(games) {
+      currentGames = games;
       if (!games.length) {
         gameList.innerHTML = '<p class="admin-empty">Nenhum jogo adicionado por aqui ainda.</p>';
         return;
       }
       gameList.innerHTML = games
         .map(function (g) {
+          if (g.gameId === editingId) {
+            return (
+              '<div class="game-card">' +
+              '<div class="game-thumb"><img src="' + escapeHtml(g.cover) + '" alt="" loading="lazy" /></div>' +
+              '<div class="game-edit-fields">' +
+              '<input class="field" type="text" data-edit-title value="' + escapeHtml(g.title) + '" maxlength="60" placeholder="Título" />' +
+              '<input class="field" type="text" data-edit-genre value="' + escapeHtml(g.genre || "") + '" maxlength="40" placeholder="Gênero" />' +
+              '<input class="field" type="text" data-edit-tags value="' + escapeHtml((g.tags || []).join(", ")) + '" placeholder="Temas, separados por vírgula" />' +
+              "</div>" +
+              '<p class="form-error" data-edit-error hidden></p>' +
+              '<div class="game-card-actions">' +
+              '<button type="button" class="btn" data-save-game="' + escapeHtml(g.gameId) + '">Salvar</button>' +
+              '<button type="button" class="btn--ghost" data-cancel-edit="' + escapeHtml(g.gameId) + '">Cancelar</button>' +
+              "</div></div>"
+            );
+          }
           return (
             '<div class="game-card">' +
             '<div class="game-thumb"><img src="' + escapeHtml(g.cover) + '" alt="" loading="lazy" /></div>' +
             '<div class="game-card-title">' + escapeHtml(g.title) + "</div>" +
-            '<div class="game-card-meta">' + escapeHtml(g.core) + "</div>" +
+            '<div class="game-card-meta">' + escapeHtml(g.core) + (g.genre ? " · " + escapeHtml(g.genre) : "") + "</div>" +
             '<div class="game-card-actions">' +
             '<a class="btn--ghost" href="/play/' + encodeURIComponent(g.gameId) + '" target="_blank" rel="noopener">Abrir</a>' +
+            '<button type="button" class="btn--ghost" data-edit-game="' + escapeHtml(g.gameId) + '">Editar</button>' +
             '<button type="button" class="btn--danger" data-delete-game="' + escapeHtml(g.gameId) + '">Apagar</button>' +
             "</div></div>"
           );
@@ -234,6 +255,64 @@
     });
 
     gameList.addEventListener("click", function (e) {
+      var editBtn = e.target.closest("[data-edit-game]");
+      if (editBtn) {
+        editingId = editBtn.dataset.editGame;
+        renderGames(currentGames);
+        return;
+      }
+
+      var cancelBtn = e.target.closest("[data-cancel-edit]");
+      if (cancelBtn) {
+        editingId = null;
+        renderGames(currentGames);
+        return;
+      }
+
+      var saveBtn = e.target.closest("[data-save-game]");
+      if (saveBtn) {
+        var id = saveBtn.dataset.saveGame;
+        var card = saveBtn.closest(".game-card");
+        var errorEl = card.querySelector("[data-edit-error]");
+        var payload = {
+          title: card.querySelector("[data-edit-title]").value.trim(),
+          genre: card.querySelector("[data-edit-genre]").value.trim(),
+          tags: card.querySelector("[data-edit-tags]").value,
+        };
+
+        errorEl.hidden = true;
+        saveBtn.disabled = true;
+        saveBtn.textContent = "Salvando...";
+
+        fetch("/admin/api/games/" + encodeURIComponent(id), {
+          method: "PATCH",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        })
+          .then(function (r) {
+            return r.json().then(function (data) { return { ok: r.ok, data: data }; });
+          })
+          .then(function (res) {
+            if (!res.ok) {
+              errorEl.textContent = (res.data && res.data.error) || "Falha ao salvar.";
+              errorEl.hidden = false;
+              saveBtn.disabled = false;
+              saveBtn.textContent = "Salvar";
+              return;
+            }
+            editingId = null;
+            loadGames();
+          })
+          .catch(function () {
+            errorEl.textContent = "Falha de rede. Tenta de novo.";
+            errorEl.hidden = false;
+            saveBtn.disabled = false;
+            saveBtn.textContent = "Salvar";
+          });
+        return;
+      }
+
       var el = e.target.closest("[data-delete-game]");
       if (!el) return;
       if (!confirm('Apagar "' + el.dataset.deleteGame + '" de vez? O arquivo some do ar também.')) return;

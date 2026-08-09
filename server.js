@@ -767,6 +767,24 @@ app.post(
   }
 );
 
+app.patch("/admin/api/games/:id", requireAdmin, async (req, res) => {
+  try {
+    const game = await libraryStore.get(req.params.id);
+    if (!game) return res.status(404).json({ error: "não encontrado" });
+
+    const { title, genre, tags } = gameEntry.buildGameUpdate(req.body);
+    const updated = { ...game, title, genre, tags };
+    await libraryStore.put(updated);
+    res.json({ game: updated });
+  } catch (err) {
+    if (err instanceof gameEntry.ValidationError) {
+      return res.status(400).json({ error: err.message });
+    }
+    console.error("[admin] falha ao editar jogo:", err.message);
+    res.status(500).json({ error: "Falha ao salvar. Tenta de novo." });
+  }
+});
+
 app.delete("/admin/api/games/:id", requireAdmin, async (req, res) => {
   try {
     const game = await libraryStore.get(req.params.id);

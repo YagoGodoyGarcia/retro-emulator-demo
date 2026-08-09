@@ -1320,6 +1320,18 @@ button {
   display: flex;
   gap: 6px;
   margin-top: auto;
+  flex-wrap: wrap;
+}
+
+.game-edit-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.game-edit-fields .field {
+  font-size: 0.8rem;
+  padding: 8px 10px;
 }
 
 .token {
