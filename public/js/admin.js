@@ -138,6 +138,167 @@
   setInterval(load, 20000); // mantém o "em uso agora" fresco
 
   // -------------------------------------------------------------------
+  // clientes (acesso exclusivo por jogo)
+  // -------------------------------------------------------------------
+
+  var clientList = document.getElementById("client-list");
+  if (clientList) {
+    var clientForm = document.getElementById("client-create-form");
+    var clientLabelInput = document.getElementById("client-label");
+    var clientEmailInput = document.getElementById("client-email");
+    var clientCreateBtn = document.getElementById("client-create-btn");
+    var allGamesById = {};
+
+    function loadAllGames() {
+      return fetch("/admin/api/all-games", { credentials: "same-origin" })
+        .then(function (r) { return r.status === 401 ? null : r.json(); })
+        .then(function (data) {
+          allGamesById = {};
+          (data && data.games ? data.games : []).forEach(function (g) {
+            allGamesById[g.gameId] = g.title;
+          });
+        })
+        .catch(function () {});
+    }
+
+    function gameOptions(selected) {
+      var ids = Object.keys(allGamesById).sort(function (a, b) {
+        return allGamesById[a].localeCompare(allGamesById[b]);
+      });
+      return (
+        '<option value="" disabled' + (selected ? "" : " selected") + '>Escolher jogo…</option>' +
+        ids
+          .map(function (id) {
+            return '<option value="' + escapeHtml(id) + '"' + (id === selected ? " selected" : "") + ">" + escapeHtml(allGamesById[id]) + "</option>";
+          })
+          .join("")
+      );
+    }
+
+    function renderClients(list) {
+      if (!list.length) {
+        clientList.innerHTML = '<p class="admin-empty">Nenhum cliente ainda. Crie o primeiro acima.</p>';
+        return;
+      }
+      clientList.innerHTML = list
+        .map(function (c) {
+          var gamesHtml = (c.games || [])
+            .map(function (gameId) {
+              var title = allGamesById[gameId] || gameId;
+              return (
+                '<span class="pill pill--bound">' + escapeHtml(title) +
+                ' <button type="button" class="pill-remove" data-unassign="' + escapeHtml(c.id) + '" data-game="' + escapeHtml(gameId) + '" aria-label="Remover">&times;</button></span>'
+              );
+            })
+            .join("") || '<span class="panel-note" style="margin:0">nenhum jogo atribuído</span>';
+          return (
+            '<div class="token' + (c.revoked ? " token--revoked" : "") + '">' +
+            '<img class="token-qr" src="' + c.qr + '" alt="QR do login" />' +
+            '<div class="token-main">' +
+            '<div class="token-label">' + escapeHtml(c.label || "Sem nome") + (c.email ? " · " + escapeHtml(c.email) : "") + "</div>" +
+            '<div class="token-url">' + escapeHtml(c.url) + "</div>" +
+            '<div class="token-status">' +
+            (c.revoked ? '<span class="pill pill--dead">revogado</span>' : '<span class="pill pill--free">ativo</span>') +
+            "<span>criado " + fmtDate(c.createdAt) + "</span>" +
+            (c.lastSeen ? "<span>· visto " + fmtDate(c.lastSeen) + "</span>" : "") +
+            "</div>" +
+            '<div class="token-status" style="margin-top:6px">' + gamesHtml + "</div>" +
+            '<div class="token-actions">' +
+            '<button type="button" class="btn--ghost" data-copy="' + escapeHtml(c.url) + '">Copiar link</button>' +
+            '<select class="field" data-assign-select="' + escapeHtml(c.id) + '" style="max-width:180px">' + gameOptions() + "</select>" +
+            '<button type="button" class="btn--ghost" data-assign="' + escapeHtml(c.id) + '">Atribuir</button>' +
+            (!c.revoked
+              ? '<button type="button" class="btn--danger" data-client-revoke="' + escapeHtml(c.id) + '">Revogar</button>'
+              : '<button type="button" class="btn--ghost" data-client-unrevoke="' + escapeHtml(c.id) + '">Reativar</button>') +
+            '<button type="button" class="btn--danger" data-client-delete="' + escapeHtml(c.id) + '">Apagar</button>' +
+            "</div></div></div>"
+          );
+        })
+        .join("");
+    }
+
+    function loadClients() {
+      return loadAllGames().then(function () {
+        return fetch("/admin/api/clients", { credentials: "same-origin" })
+          .then(function (r) { return r.status === 401 ? null : r.json(); })
+          .then(function (data) { if (data) renderClients(data.clients); })
+          .catch(function () {
+            clientList.innerHTML = '<p class="admin-empty">Falha ao carregar. Recarregue a página.</p>';
+          });
+      });
+    }
+
+    clientForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      clientCreateBtn.disabled = true;
+      fetch("/admin/api/clients", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label: clientLabelInput.value.trim(), email: clientEmailInput.value.trim() }),
+      })
+        .then(function () {
+          clientLabelInput.value = "";
+          clientEmailInput.value = "";
+          loadClients();
+        })
+        .finally(function () { clientCreateBtn.disabled = false; });
+    });
+
+    clientList.addEventListener("click", function (e) {
+      var el = e.target.closest(
+        "[data-copy],[data-assign],[data-unassign],[data-client-revoke],[data-client-unrevoke],[data-client-delete]"
+      );
+      if (!el) return;
+
+      if (el.dataset.copy) {
+        navigator.clipboard.writeText(el.dataset.copy).then(function () {
+          var original = el.textContent;
+          el.textContent = "Copiado!";
+          setTimeout(function () { el.textContent = original; }, 1400);
+        });
+        return;
+      }
+      if (el.dataset.assign) {
+        var select = clientList.querySelector('[data-assign-select="' + el.dataset.assign + '"]');
+        var gameId = select && select.value;
+        if (!gameId) return;
+        fetch("/admin/api/clients/" + el.dataset.assign + "/games", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ gameId: gameId }),
+        }).then(loadClients);
+        return;
+      }
+      if (el.dataset.unassign) {
+        fetch("/admin/api/clients/" + el.dataset.unassign + "/games/" + encodeURIComponent(el.dataset.game), {
+          method: "DELETE",
+          credentials: "same-origin",
+        }).then(loadClients);
+        return;
+      }
+      if (el.dataset.clientRevoke) {
+        if (confirm("Revogar o acesso deste cliente? Ele perde o login na hora.")) {
+          fetch("/admin/api/clients/" + el.dataset.clientRevoke + "/revoke", { method: "POST", credentials: "same-origin" }).then(loadClients);
+        }
+        return;
+      }
+      if (el.dataset.clientUnrevoke) {
+        fetch("/admin/api/clients/" + el.dataset.clientUnrevoke + "/unrevoke", { method: "POST", credentials: "same-origin" }).then(loadClients);
+        return;
+      }
+      if (el.dataset.clientDelete) {
+        if (confirm("Apagar este cliente de vez? Os jogos atribuídos a ele voltam a ficar sem dono.")) {
+          fetch("/admin/api/clients/" + el.dataset.clientDelete, { method: "DELETE", credentials: "same-origin" }).then(loadClients);
+        }
+      }
+    });
+
+    loadClients();
+  }
+
+  // -------------------------------------------------------------------
   // adicionar jogo (upload de ROM)
   // -------------------------------------------------------------------
 

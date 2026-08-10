@@ -382,6 +382,30 @@ button {
   opacity: 0;
 }
 
+/* Jogo com dono atribuído (lib/ownership.js) que é o cliente logado — cor
+ * diferente do "Exclusivo MYDE" pra não confundir os dois selos. */
+.tile-badge--mine {
+  color: #052e1a;
+  background: linear-gradient(135deg, #86efac, #22c55e);
+}
+
+.client-badge {
+  display: flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-decoration: none;
+  backdrop-filter: blur(12px);
+  white-space: nowrap;
+}
+
 /* =====================================================================
    ABAS — Jogos / Consoles / Coleções
    ===================================================================== */
@@ -1641,6 +1665,22 @@ button {
   display: flex;
   gap: 7px;
   flex-wrap: wrap;
+}
+
+.pill-remove {
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: 0.9em;
+  line-height: 1;
+  margin-left: 4px;
+  padding: 0;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.pill-remove:hover {
+  opacity: 1;
 }
 
 .admin-empty {
