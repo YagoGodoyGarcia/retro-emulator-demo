@@ -503,6 +503,93 @@ button {
   .consoles-grid { grid-template-columns: repeat(3, 1fr); }
 }
 
+/* Aba "Pedir jogo" — mesma grade responsiva do console-tile, mas o card não
+   é clicável inteiro (não é jogável): a imagem só ilustra, quem age é o
+   botão embaixo. */
+.request-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  padding: 4px 2px 20px;
+}
+
+@media (min-width: 560px) {
+  .request-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+.request-card {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+}
+
+.request-card-meta {
+  position: relative;
+  aspect-ratio: 5 / 3;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 2px;
+  color: #fff;
+  background: #000;
+}
+
+.request-card-meta::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--art);
+  background-size: cover;
+  background-position: center;
+  filter: blur(16px) saturate(150%) brightness(0.4);
+  transform: scale(1.3);
+}
+
+.request-card-title,
+.request-card-console {
+  position: relative;
+  z-index: 1;
+}
+
+.request-card-title {
+  font-size: 0.82rem;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.request-card-console {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.request-card-btn {
+  border: none;
+  border-top: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 10px;
+  cursor: pointer;
+}
+
+.request-card-btn:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
+.request-card-btn:not(:disabled):hover,
+.request-card-btn:not(:disabled):active {
+  background: color-mix(in srgb, var(--accent, var(--live-accent)) 14%, transparent);
+}
+
 .console-tile {
   position: relative;
   aspect-ratio: 5 / 3;

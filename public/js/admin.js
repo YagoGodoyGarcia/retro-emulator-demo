@@ -299,6 +299,76 @@
   }
 
   // -------------------------------------------------------------------
+  // fila de solicitações de acesso
+  // -------------------------------------------------------------------
+
+  var requestQueueList = document.getElementById("request-queue-list");
+  if (requestQueueList) {
+    function renderRequestQueue(requests) {
+      if (!requests.length) {
+        requestQueueList.innerHTML = '<p class="admin-empty">Nenhum pedido pendente.</p>';
+        return;
+      }
+      requestQueueList.innerHTML = requests
+        .map(function (r) {
+          return (
+            '<div class="token">' +
+            '<div class="token-main">' +
+            '<div class="token-label">' + escapeHtml(r.gameTitle) + "</div>" +
+            '<div class="token-url">pedido de ' + escapeHtml(r.clientLabel) + "</div>" +
+            '<div class="token-status"><span>pedido ' + fmtDate(r.createdAt) + "</span></div>" +
+            '<div class="token-actions">' +
+            '<button type="button" class="btn" data-approve-request="' + escapeHtml(r.id) + '">Aprovar</button>' +
+            '<button type="button" class="btn--danger" data-deny-request="' + escapeHtml(r.id) + '">Negar</button>' +
+            "</div></div></div>"
+          );
+        })
+        .join("");
+    }
+
+    function loadRequestQueue() {
+      fetch("/admin/api/access-requests", { credentials: "same-origin" })
+        .then(function (r) { return r.status === 401 ? null : r.json(); })
+        .then(function (data) { if (data) renderRequestQueue(data.requests); })
+        .catch(function () {
+          requestQueueList.innerHTML = '<p class="admin-empty">Falha ao carregar. Recarregue a página.</p>';
+        });
+    }
+
+    requestQueueList.addEventListener("click", function (e) {
+      var approveBtn = e.target.closest("[data-approve-request]");
+      if (approveBtn) {
+        approveBtn.disabled = true;
+        fetch("/admin/api/access-requests/" + approveBtn.dataset.approveRequest + "/approve", {
+          method: "POST",
+          credentials: "same-origin",
+        })
+          .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+          .then(function (res) {
+            if (!res.ok) {
+              alert((res.data && res.data.error) || "Falha ao aprovar.");
+              approveBtn.disabled = false;
+              return;
+            }
+            loadRequestQueue();
+          });
+        return;
+      }
+      var denyBtn = e.target.closest("[data-deny-request]");
+      if (denyBtn) {
+        denyBtn.disabled = true;
+        fetch("/admin/api/access-requests/" + denyBtn.dataset.denyRequest + "/deny", {
+          method: "POST",
+          credentials: "same-origin",
+        }).then(loadRequestQueue);
+      }
+    });
+
+    loadRequestQueue();
+    setInterval(loadRequestQueue, 20000);
+  }
+
+  // -------------------------------------------------------------------
   // adicionar jogo (upload de ROM)
   // -------------------------------------------------------------------
 

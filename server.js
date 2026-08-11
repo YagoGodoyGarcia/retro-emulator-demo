@@ -9,6 +9,8 @@ const access = require("./lib/access");
 const clients = require("./lib/clients");
 const clientsStore = require("./lib/clients-store");
 const ownership = require("./lib/ownership");
+const accessRequests = require("./lib/access-requests");
+const { limiter } = require("./lib/rate-limit");
 const libraryStore = require("./lib/library-store");
 const blob = require("./lib/blob");
 const gameEntry = require("./lib/game-entry");
@@ -106,11 +108,102 @@ function systemPage(res, status, { icon, title, body }) {
 </html>`);
 }
 
+// Tela que o cliente logado vê ao tentar abrir um jogo que não é dele —
+// em vez de só bloquear, oferece pedir acesso (POST /api/access-requests).
+// `pending` já vem calculado (existe pedido em aberto pra esse par
+// cliente+jogo?) pra não deixar pedir de novo à toa.
+function requestAccessPage(res, cfg, pending) {
+  res.status(403).send(`<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>${escapeHtml(cfg.title)} · MYDE</title>
+  <link rel="stylesheet" href="/css/style.css" />${PWA_HEAD}
+</head>
+<body class="system-body">
+  <main class="system-card">
+    <div class="system-mark">MYDE</div>
+    <div class="system-icon">🔒</div>
+    <h1>${escapeHtml(cfg.title)} ainda não é seu</h1>
+    <p>Esse cartucho não está atribuído à sua conta. Peça acesso — o admin recebe o pedido e decide.</p>
+    <button type="button" class="btn" id="request-btn" ${pending ? "disabled" : ""}>${
+      pending ? "Pedido enviado — aguardando aprovação" : "Solicitar acesso"
+    }</button>
+    <p class="form-error" id="request-error" hidden></p>
+    <p><a href="/">&larr; voltar pra sua coleção</a></p>
+  </main>
+  <script>
+    (function () {
+      var btn = document.getElementById("request-btn");
+      if (!btn || btn.disabled) return;
+      var errorEl = document.getElementById("request-error");
+      btn.addEventListener("click", function () {
+        btn.disabled = true;
+        btn.textContent = "Enviando...";
+        fetch("/api/access-requests", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ gameId: ${jsonForScript(cfg.gameId)} }),
+        })
+          .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+          .then(function (res) {
+            if (!res.ok) {
+              errorEl.textContent = (res.data && res.data.error) || "Falha ao enviar. Tenta de novo.";
+              errorEl.hidden = false;
+              btn.disabled = false;
+              btn.textContent = "Solicitar acesso";
+              return;
+            }
+            btn.textContent = "Pedido enviado — aguardando aprovação";
+          })
+          .catch(function () {
+            errorEl.textContent = "Falha de rede. Tenta de novo.";
+            errorEl.hidden = false;
+            btn.disabled = false;
+            btn.textContent = "Solicitar acesso";
+          });
+      });
+    })();
+  </script>
+</body>
+</html>`);
+}
+
+// ---------------------------------------------------------------------------
+// rate limiting — por IP, em memória (ver lib/rate-limit.js pra ressalva
+// sobre serverless). Cobre as rotas que aceitam um "código" vindo de fora
+// (força bruta/scan) e o login do admin (adivinhação de senha).
+// ---------------------------------------------------------------------------
+
+const loginLinkLimiter = limiter("login-link", {
+  windowMs: 10 * 60 * 1000,
+  max: 30,
+  onLimited: (req, res) =>
+    systemPage(res, 429, {
+      icon: "⏳",
+      title: "Muitas tentativas",
+      body: "<p>Espera alguns minutos e tenta de novo.</p>",
+    }),
+});
+
+const adminLoginLimiter = limiter("admin-login", {
+  windowMs: 10 * 60 * 1000,
+  max: 10,
+  onLimited: (req, res) => adminLoginPage(res, "Muitas tentativas. Espera alguns minutos e tenta de novo.", 429),
+});
+
+const accessRequestLimiter = limiter("access-request", {
+  windowMs: 60 * 1000,
+  max: 10,
+});
+
 // ---------------------------------------------------------------------------
 // /t/:token — resgate do link exclusivo
 // ---------------------------------------------------------------------------
 
-app.get("/t/:token", async (req, res) => {
+app.get("/t/:token", loginLinkLimiter, async (req, res) => {
   const device = access.deviceId(req, res);
   let result;
   try {
@@ -155,7 +248,7 @@ app.get("/t/:token", async (req, res) => {
 // /c/:id — login do cliente (conta criada pelo admin, sem senha nem Google)
 // ---------------------------------------------------------------------------
 
-app.get("/c/:id", async (req, res) => {
+app.get("/c/:id", loginLinkLimiter, async (req, res) => {
   let client;
   try {
     client = await clientsStore.get(req.params.id);
@@ -222,14 +315,16 @@ async function requireAccess(req, res, next) {
 app.get("/", requireAccess, async (req, res) => {
   const client = await clients.currentClient(clientsStore, req).catch(() => null);
   const allGamesUnfiltered = await library.getPublishedGames();
-  // Jogo com dono (lib/ownership.js) só aparece pra conta dona — pra todo
-  // mundo mais, inclusive quem entrou pelo link de convite, é como se não
-  // existisse. Jogo sem dono continua igual a antes: aberto.
   const owners = await Promise.all(allGamesUnfiltered.map((g) => ownership.getOwner(g.gameId)));
   const ownerByGame = new Map(allGamesUnfiltered.map((g, i) => [g.gameId, owners[i]]));
+  // Fechado por padrão: conta de cliente logada só vê o que foi atribuído a
+  // ela — jogo sem dono NÃO é "de graça" pra quem está logado como cliente
+  // (não existe mais "aberto pra todo mundo" por ausência de dono). Quem
+  // não é cliente (visitante pelo link de convite tradicional) continua no
+  // fluxo antigo: só os jogos sem dono nenhum, do jeito que sempre foi.
   const allGames = allGamesUnfiltered.filter((g) => {
     const owner = ownerByGame.get(g.gameId);
-    return !owner || (client && owner === client.id);
+    return client ? owner === client.id : !owner;
   });
   const plays = await playStats.getCounts(allGames.map((g) => g.gameId));
   // Destaque continua abrindo a vitrine primeiro — é um slot editorial, não
@@ -321,6 +416,9 @@ app.get("/", requireAccess, async (req, res) => {
       <button type="button" class="tab-btn is-active" data-tab-btn data-tab="jogos" data-nav role="tab" aria-selected="true" id="tab-btn-jogos" aria-controls="panel-jogos">Jogos</button>
       <button type="button" class="tab-btn" data-tab-btn data-tab="consoles" data-nav role="tab" aria-selected="false" id="tab-btn-consoles" aria-controls="panel-consoles">Consoles</button>
       <button type="button" class="tab-btn" data-tab-btn data-tab="colecoes" data-nav role="tab" aria-selected="false" id="tab-btn-colecoes" aria-controls="panel-colecoes">Coleções</button>
+      ${client
+        ? '<button type="button" class="tab-btn" data-tab-btn data-tab="pedir" data-nav role="tab" aria-selected="false" id="tab-btn-pedir" aria-controls="panel-pedir">Pedir jogo</button>'
+        : ""}
     </nav>
 
     <div class="search-panel" id="search-panel">
@@ -346,7 +444,11 @@ app.get("/", requireAccess, async (req, res) => {
         </button>
       </div>
 
-      <p id="empty-state" class="empty-state" hidden>Nenhum jogo encontrado.</p>
+      <p id="empty-state" class="empty-state" hidden>${
+        client && allGames.length === 0
+          ? 'Você ainda não tem nenhum jogo atribuído. Peça acesso na aba <strong>Pedir jogo</strong>.'
+          : "Nenhum jogo encontrado."
+      }</p>
 
       <div class="hud" id="hud">
         <div class="hud-meta">
@@ -370,6 +472,14 @@ app.get("/", requireAccess, async (req, res) => {
     <section class="tab-panel" id="panel-colecoes" data-tab-panel="colecoes" role="tabpanel" aria-labelledby="tab-btn-colecoes" hidden>
       <div class="collections-scroll" id="collections-scroll"></div>
     </section>
+
+    ${client
+      ? `<section class="tab-panel" id="panel-pedir" data-tab-panel="pedir" role="tabpanel" aria-labelledby="tab-btn-pedir" hidden>
+      <p class="panel-note" style="padding:0 4px 12px">Jogos que ainda não são seus. Pedir acesso manda uma solicitação pro admin — ele aprova ou nega.</p>
+      <div class="request-grid" id="request-grid"></div>
+      <p class="admin-empty" id="request-empty" hidden>Nenhum jogo pra pedir — você já tem tudo que existe no catálogo.</p>
+    </section>`
+      : ""}
   </main>
 
   <div class="sheet" id="ios-sheet" hidden>
@@ -416,9 +526,56 @@ app.get("/api/keychains", async (req, res) => {
   const visible = [];
   for (const g of games) {
     const owner = await ownership.getOwner(g.gameId);
-    if (!owner || (client && owner === client.id)) visible.push(g);
+    if (client ? owner === client.id : !owner) visible.push(g);
   }
   res.json(Object.fromEntries(visible.map((g) => [g.gameId, g])));
+});
+
+// Catálogo pro cliente PEDIR acesso — o oposto de /api/keychains: só o que
+// NÃO é dele (jogo de outro dono ou sem dono nenhum), pra alimentar a aba
+// "Pedir jogo". Exige sessão de cliente — sem isso não tem quem pedir em
+// nome de quem.
+app.get("/api/catalog/requestable", async (req, res) => {
+  const client = await clients.currentClient(clientsStore, req).catch(() => null);
+  if (!client) return res.status(401).json({ error: "faça login com seu link de cliente" });
+
+  const games = await library.getPublishedGames();
+  const result = [];
+  for (const g of games) {
+    const owner = await ownership.getOwner(g.gameId);
+    if (owner === client.id) continue;
+    const pending = await accessRequests.findPending(client.id, g.gameId);
+    result.push({
+      gameId: g.gameId,
+      title: g.title,
+      cover: coverSrc(g),
+      console: platforms.styleOf(g.core).label,
+      pending: Boolean(pending),
+    });
+  }
+  res.json({ games: result });
+});
+
+app.post("/api/access-requests", accessRequestLimiter, async (req, res) => {
+  const client = await clients.currentClient(clientsStore, req).catch(() => null);
+  if (!client) return res.status(401).json({ error: "faça login com seu link de cliente pra pedir acesso" });
+
+  const gameId = String((req.body && req.body.gameId) || "").trim();
+  if (!gameId) return res.status(400).json({ error: "informe o jogo" });
+
+  const game = await library.getGame(gameId);
+  if (!game) return res.status(404).json({ error: "jogo não encontrado" });
+
+  const owner = await ownership.getOwner(gameId);
+  if (owner === client.id) return res.status(400).json({ error: "esse jogo já é seu" });
+
+  try {
+    const request = await accessRequests.createRequest(client.id, gameId);
+    res.json({ request });
+  } catch (err) {
+    console.error("[access-requests] falha ao criar pedido:", err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -444,19 +601,24 @@ app.get("/play/:keyId", requireAccess, async (req, res) => {
     });
   }
 
-  // Jogo exclusivo (lib/ownership.js): só a conta dona joga, mesmo com link
-  // de convite válido — é essa checagem que faz o "cartucho" valer alguma
-  // coisa.
+  // Fechado por padrão. Cliente logado: só joga o que é dele — jogo sem
+  // dono NÃO libera automaticamente (mesma regra da home/catálogo). Quem
+  // não é cliente: comportamento de sempre, só bloqueia se o jogo tiver
+  // dono (aí não tem quem pedir acesso, então é bloqueio simples).
   const owner = await ownership.getOwner(keyId).catch(() => null);
-  if (owner) {
-    const client = await clients.currentClient(clientsStore, req).catch(() => null);
-    if (!client || client.id !== owner) {
-      return systemPage(res, 403, {
-        icon: "🔒",
-        title: "Jogo exclusivo",
-        body: "<p>Este cartucho pertence a outra conta. Se você acha que deveria ter acesso, fala com quem te deu o jogo.</p>",
-      });
+  const client = await clients.currentClient(clientsStore, req).catch(() => null);
+
+  if (client) {
+    if (owner !== client.id) {
+      const pending = await accessRequests.findPending(client.id, keyId).catch(() => null);
+      return requestAccessPage(res, cfg, Boolean(pending));
     }
+  } else if (owner) {
+    return systemPage(res, 403, {
+      icon: "🔒",
+      title: "Jogo exclusivo",
+      body: "<p>Este cartucho pertence a uma conta específica. Se você tem uma conta MYDE, entre pelo seu link de login pra pedir acesso.</p>",
+    });
   }
 
   // Não bloqueia o carregamento da página por causa disso — é só contagem
@@ -519,8 +681,8 @@ app.get("/play/:keyId", requireAccess, async (req, res) => {
 // ADMIN
 // ---------------------------------------------------------------------------
 
-function adminLoginPage(res, error) {
-  res.status(error ? 401 : 200).send(`<!DOCTYPE html>
+function adminLoginPage(res, error, status) {
+  res.status(status || (error ? 401 : 200)).send(`<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
@@ -670,6 +832,16 @@ app.get("/admin", async (req, res) => {
     <div class="token-list" id="client-list"></div>
 
     <div class="panel">
+      <h2>Solicitações de acesso</h2>
+      <p class="panel-note">
+        Cliente pediu um jogo que não é dele ainda. Aprovar atribui o jogo na hora; negar só
+        fecha o pedido. Atualiza sozinho a cada 20s.
+      </p>
+    </div>
+
+    <div class="token-list" id="request-queue-list"></div>
+
+    <div class="panel">
       <h2>Adicionar jogo</h2>
       <p class="panel-note">
         ROM até ${(gameEntry.MAX_ROM_BYTES / 1024 / 1024).toFixed(1)}MB
@@ -811,7 +983,7 @@ app.get("/admin/import", (req, res) => {
 </html>`);
 });
 
-app.post("/admin/login", express.urlencoded({ extended: false }), (req, res) => {
+app.post("/admin/login", express.urlencoded({ extended: false }), adminLoginLimiter, (req, res) => {
   if (!access.adminConfigured) return adminSetupPage(res);
   if (!access.checkAdminPassword(req.body.password)) {
     return adminLoginPage(res, "Senha incorreta.");
@@ -1022,6 +1194,74 @@ app.delete("/admin/api/clients/:id/games/:gameId", requireAdmin, async (req, res
     res.json({ ok: true });
   } catch (err) {
     console.error("[admin] falha ao remover posse:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// ADMIN — fila de solicitações de acesso
+// ---------------------------------------------------------------------------
+
+app.get("/admin/api/access-requests", requireAdmin, async (req, res) => {
+  try {
+    const pending = await accessRequests.listPending();
+    const enriched = await Promise.all(
+      pending.map(async (r) => {
+        const [client, game] = await Promise.all([
+          clientsStore.get(r.clientId),
+          library.getGame(r.gameId),
+        ]);
+        return {
+          ...r,
+          clientLabel: client ? client.label || client.email || r.clientId : "(cliente apagado)",
+          gameTitle: game ? game.title : r.gameId,
+        };
+      })
+    );
+    res.json({ requests: enriched });
+  } catch (err) {
+    console.error("[admin] falha ao listar solicitações:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/admin/api/access-requests/:id/approve", requireAdmin, async (req, res) => {
+  try {
+    const request = await accessRequests.get(req.params.id);
+    if (!request || request.status !== "pending") {
+      return res.status(404).json({ error: "não encontrado (talvez já resolvido)" });
+    }
+
+    const currentOwner = await ownership.getOwner(request.gameId);
+    if (currentOwner && currentOwner !== request.clientId) {
+      return res.status(409).json({
+        error: "esse jogo já tem outro dono agora — remova a posse atual antes de aprovar este pedido",
+      });
+    }
+
+    await ownership.setOwner(request.gameId, request.clientId);
+    await accessRequests.resolveRequest(request.id, "approved");
+
+    // Outros pedidos pendentes pro MESMO jogo (de outros clientes) deixam de
+    // fazer sentido — o jogo já foi pra alguém. Fecha em vez de deixar a
+    // fila com pedido órfão que o admin teria que descobrir sozinho.
+    const others = await accessRequests.listOtherPendingForGame(request.gameId, request.id);
+    await Promise.all(others.map((o) => accessRequests.resolveRequest(o.id, "denied")));
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[admin] falha ao aprovar solicitação:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/admin/api/access-requests/:id/deny", requireAdmin, async (req, res) => {
+  try {
+    const request = await accessRequests.resolveRequest(req.params.id, "denied");
+    if (!request) return res.status(404).json({ error: "não encontrado (talvez já resolvido)" });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[admin] falha ao negar solicitação:", err.message);
     res.status(500).json({ error: err.message });
   }
 });

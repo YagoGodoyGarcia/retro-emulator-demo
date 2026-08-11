@@ -758,6 +758,92 @@
   }
 
   // -------------------------------------------------------------------
+  // aba Pedir jogo — só existe no DOM se o servidor renderizou o cliente
+  // logado (ver server.js, rota GET /). Lista o que NÃO é do cliente
+  // (/api/catalog/requestable) com botão de solicitar acesso.
+  // -------------------------------------------------------------------
+
+  function buildRequestList() {
+    var grid = document.getElementById("request-grid");
+    var emptyEl = document.getElementById("request-empty");
+    if (!grid) return;
+
+    fetch("/api/catalog/requestable", { credentials: "same-origin" })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var games = (data && data.games) || [];
+        renderRequestList(games);
+      })
+      .catch(function () {
+        grid.innerHTML = '<p class="admin-empty">Falha ao carregar. Recarregue a página.</p>';
+      });
+
+    function renderRequestList(games) {
+      grid.innerHTML = "";
+      if (emptyEl) emptyEl.hidden = games.length !== 0;
+      if (!games.length) return;
+
+      var frag = document.createDocumentFragment();
+      games.forEach(function (g) {
+        var card = document.createElement("div");
+        card.className = "request-card";
+        card.style.setProperty("--art", "url('" + g.cover + "')");
+
+        var meta = document.createElement("div");
+        meta.className = "request-card-meta";
+        var title = document.createElement("div");
+        title.className = "request-card-title";
+        title.textContent = g.title;
+        var console_ = document.createElement("div");
+        console_.className = "request-card-console";
+        console_.textContent = g.console;
+        meta.appendChild(title);
+        meta.appendChild(console_);
+
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "request-card-btn";
+        if (g.pending) {
+          btn.textContent = "Aguardando aprovação";
+          btn.disabled = true;
+        } else {
+          btn.textContent = "Solicitar acesso";
+          btn.addEventListener("click", function () {
+            btn.disabled = true;
+            btn.textContent = "Enviando...";
+            fetch("/api/access-requests", {
+              method: "POST",
+              credentials: "same-origin",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ gameId: g.gameId }),
+            })
+              .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+              .then(function (res) {
+                if (!res.ok) {
+                  btn.disabled = false;
+                  btn.textContent = "Solicitar acesso";
+                  alert((res.data && res.data.error) || "Falha ao enviar o pedido.");
+                  return;
+                }
+                btn.textContent = "Aguardando aprovação";
+              })
+              .catch(function () {
+                btn.disabled = false;
+                btn.textContent = "Solicitar acesso";
+                alert("Falha de rede. Tenta de novo.");
+              });
+          });
+        }
+
+        card.appendChild(meta);
+        card.appendChild(btn);
+        frag.appendChild(card);
+      });
+      grid.appendChild(frag);
+    }
+  }
+
+  // -------------------------------------------------------------------
   // troca de aba — Jogos / Consoles / Coleções
   // -------------------------------------------------------------------
 
@@ -776,6 +862,7 @@
     });
     if (tab === "consoles") buildConsolesGrid();
     if (tab === "colecoes") buildCollections();
+    if (tab === "pedir") buildRequestList();
     if (tab === "jogos") setTimeout(layout, 0); // painel saiu de display:none, recalcula
   }
 
