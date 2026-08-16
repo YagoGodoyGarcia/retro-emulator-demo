@@ -348,7 +348,11 @@ app.get("/c/:id", loginLinkLimiter, async (req, res) => {
 
   let publishedGames = [];
   try { publishedGames = await library.getPublishedGames(); } catch (err) {}
-  const claimGameId = client.claimGameId || "sonic-the-hedgehog-2-2";
+  // Jogo já atribuído (fluxo antigo, de antes do cadastro por link existir)
+  // tem prioridade sobre o id fixo de fallback — sem isso, uma carteira sem
+  // `claimGameId` gravado acabaria vendo/ganhando um jogo que não é o dela.
+  const ownedGameIds = await ownership.getClientGames(client.id).catch(() => []);
+  const claimGameId = client.claimGameId || ownedGameIds[0] || "sonic-the-hedgehog-2-2";
   const claimGame = publishedGames.find((game) => game.gameId === claimGameId) || publishedGames[0] || null;
 
   if (!client.label) {
@@ -370,7 +374,6 @@ app.get("/c/:id", loginLinkLimiter, async (req, res) => {
     userAgent: req.get("user-agent"),
   }).catch(() => {});
 
-  const ownedGameIds = await ownership.getClientGames(client.id).catch(() => []);
   if (ownedGameIds.length === 1) {
     const ownedGame = publishedGames.find((game) => game.gameId === ownedGameIds[0]);
     if (ownedGame) return res.redirect(302, `/play/${encodeURIComponent(ownedGame.gameId)}`);
@@ -390,7 +393,10 @@ app.post("/c/:id/claim", loginLinkLimiter, async (req, res) => {
   } catch (err) {
     return res.status(503).json({ error: "não foi possível carregar o jogo agora; tente novamente" });
   }
-  const gameId = client.claimGameId || "sonic-the-hedgehog-2-2";
+  // Mesma prioridade do GET acima: jogo já atribuído antes do
+  // `claimGameId` existir vence o id fixo de fallback.
+  const ownedGameIds = await ownership.getClientGames(client.id).catch(() => []);
+  const gameId = client.claimGameId || ownedGameIds[0] || "sonic-the-hedgehog-2-2";
   const game = games.find((item) => item.gameId === gameId) || games[0];
   if (!game) return res.status(503).json({ error: "nenhum jogo publicado está disponível agora" });
 
@@ -738,9 +744,22 @@ app.get("/play/:keyId", requireAccess, async (req, res) => {
   // URL antes de alguém confirmar que está pronto.
   const games = await library.getPublishedGames();
   const cfg = games.find((g) => g.gameId === keyId);
+  const client = await clients.currentClient(clientsStore, req).catch(() => null);
+  const isAdmin = access.isAdmin(req);
 
   if (!cfg) {
-    const known = games
+    // Mesma regra de visibilidade do catálogo (home/api/keychains): não
+    // sugerir jogos exclusivos de outra carteira pra quem digitou/guardou
+    // uma URL errada.
+    let suggestable = games;
+    if (!isAdmin) {
+      const ownerLists = await Promise.all(games.map((g) => ownership.getGameOwners(g.gameId).catch(() => [])));
+      suggestable = games.filter((g, i) => {
+        const gameOwners = ownerLists[i] || [];
+        return client ? gameOwners.includes(client.id) : gameOwners.length === 0;
+      });
+    }
+    const known = suggestable
       .map((g) => `<li><a href="/play/${encodeURIComponent(g.gameId)}">${escapeHtml(g.gameId)}</a></li>`)
       .join("");
     return systemPage(res, 404, {
@@ -755,8 +774,6 @@ app.get("/play/:keyId", requireAccess, async (req, res) => {
   // não é cliente: comportamento de sempre, só bloqueia se o jogo tiver
   // dono (aí não tem quem pedir acesso, então é bloqueio simples).
   const owners = await ownership.getGameOwners(keyId).catch(() => []);
-  const client = await clients.currentClient(clientsStore, req).catch(() => null);
-  const isAdmin = access.isAdmin(req);
 
   if (!isAdmin && client) {
     if (!owners.includes(client.id)) {

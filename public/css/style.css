@@ -1325,6 +1325,17 @@ button {
   background: color-mix(in srgb, var(--live-accent) 30%, rgba(20, 20, 28, 0.75));
 }
 
+/* Antes do jogo existir de fato (core/ROM ainda baixando), Salvar/Carregar
+   ficam visualmente apagados em vez de simplesmente não fazer nada quando
+   tocados. */
+.quick-action-btn:disabled {
+  opacity: 0.4;
+}
+.quick-action-btn:disabled:active {
+  transform: none;
+  background: rgba(20, 20, 28, 0.75);
+}
+
 @media (max-width: 380px) {
   .player-menu-toggle { left: 54px; }
   .quick-actions { left: 96px; }
@@ -1477,11 +1488,34 @@ button {
 
 /* O botão nativo fica visível de propósito: o início precisa acontecer
    dentro de um gesto real do usuário para o navegador liberar o áudio e o
-   primeiro frame no mobile. */
+   primeiro frame no mobile. Ele vem de fábrica com texto em inglês
+   ("START GAME") e sem nada da identidade da MYDE — destoa do resto da
+   tela, que é toda em pt-BR. Sem depender de saber a estrutura interna do
+   botão (vem do EmulatorJS, não temos como inspecionar o DOM dele com
+   segurança), a marca troca só a APARÊNCIA por CSS: o texto nativo encolhe
+   a zero (`font-size: 0`) e um `::after` com rótulo em português assume o
+   lugar — funciona com qualquer texto/idioma que o EmulatorJS use por
+   baixo, sem tocar em comportamento nenhum. */
 .ejs_start_button {
   display: flex !important;
-  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  min-height: 52px;
+  padding: 0 30px;
+  border: none !important;
   border-radius: 999px;
+  background: #c4b5fd !important;
+  color: transparent !important;
+  font-size: 0 !important;
+  box-shadow: 0 14px 44px rgba(196, 181, 253, 0.35);
+}
+
+.ejs_start_button::after {
+  content: "▶  Iniciar jogo";
+  font-size: 1rem;
+  font-weight: 900;
+  letter-spacing: 0.01em;
+  color: #171226;
 }
 
 /* =====================================================================
