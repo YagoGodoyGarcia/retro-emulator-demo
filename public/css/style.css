@@ -1082,6 +1082,101 @@ button {
   max-width: 400px;
 }
 
+.onboarding-card {
+  width: min(100%, 400px);
+  padding: 28px 24px;
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.3);
+}
+
+.onboarding-form {
+  display: grid;
+  gap: 14px;
+  margin-top: 20px;
+  text-align: left;
+}
+
+.onboarding-form label {
+  display: grid;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.onboarding-form label span {
+  color: var(--dim);
+  font-weight: 500;
+}
+
+.onboarding-form .field {
+  width: 100%;
+}
+
+.report-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0;
+}
+
+.report-stat {
+  padding: 8px 11px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.report-stat strong {
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.report-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.report-table {
+  min-width: 620px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.report-row {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr 1.2fr;
+  gap: 12px;
+  padding: 11px 13px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.report-row:first-child { border-top: 0; }
+.report-row--head {
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--dim);
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.report-row strong,
+.report-row small {
+  display: block;
+}
+
+.report-row strong { color: var(--text); }
+.report-row small { margin-top: 3px; color: var(--dim); font-size: 0.72rem; }
+
+
 .system-mark {
   font-size: 0.85rem;
   font-weight: 900;
@@ -1177,10 +1272,26 @@ button {
    isso, mas escondido numa barra que só aparece com toque perto da borda e
    some sozinha; ninguém leigo acha isso de primeira. Ao lado da setinha de
    voltar, mesma altura, pra formar um grupo único de "ações" no canto. */
-.quick-actions {
+.player-menu-toggle {
   position: absolute;
   top: max(10px, env(safe-area-inset-top));
   left: 56px;
+  z-index: 20;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(20, 20, 28, 0.78);
+  color: #fff;
+  font-size: 1.3rem;
+  line-height: 1;
+  backdrop-filter: blur(4px);
+}
+
+.quick-actions {
+  position: absolute;
+  top: max(10px, env(safe-area-inset-top));
+  left: 100px;
   z-index: 20;
   display: flex;
   gap: 6px;
@@ -1215,6 +1326,8 @@ button {
 }
 
 @media (max-width: 380px) {
+  .player-menu-toggle { left: 54px; }
+  .quick-actions { left: 96px; }
   /* Tela bem estreita: ícone só, sem o texto, pra não brigar de espaço
      com a setinha de voltar e o badge de carregamento. */
   .quick-action-btn span { display: none; }

@@ -26,3 +26,13 @@ test("removeOwner libera o jogo e tira da lista do cliente", async () => {
   assert.equal(await ownership.getOwner("jogo-c"), null);
   assert.equal((await ownership.getClientGames("cliente-3")).includes("jogo-c"), false);
 });
+
+test("addOwner compartilha o mesmo jogo entre duas carteiras", async () => {
+  await ownership.setOwner("jogo-compartilhado", "cliente-a");
+  await ownership.addOwner("jogo-compartilhado", "cliente-b");
+  assert.deepEqual((await ownership.getGameOwners("jogo-compartilhado")).sort(), ["cliente-a", "cliente-b"]);
+  assert.equal((await ownership.getClientGames("cliente-a")).includes("jogo-compartilhado"), true);
+  assert.equal((await ownership.getClientGames("cliente-b")).includes("jogo-compartilhado"), true);
+  await ownership.removeOwner("jogo-compartilhado", "cliente-a");
+  assert.deepEqual(await ownership.getGameOwners("jogo-compartilhado"), ["cliente-b"]);
+});

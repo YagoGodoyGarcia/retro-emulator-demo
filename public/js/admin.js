@@ -160,6 +160,7 @@
     var clientLabelInput = document.getElementById("client-label");
     var clientEmailInput = document.getElementById("client-email");
     var clientCreateBtn = document.getElementById("client-create-btn");
+    var clientGameSelect = document.getElementById("client-game");
     var allGamesById = {};
 
     function loadAllGames() {
@@ -170,6 +171,11 @@
           (data && data.games ? data.games : []).forEach(function (g) {
             allGamesById[g.gameId] = g.title;
           });
+          if (clientGameSelect) {
+            clientGameSelect.innerHTML = gameOptions();
+            var preferred = Object.keys(allGamesById).find(function (id) { return id === "sonic-the-hedgehog-2-2"; }) || Object.keys(allGamesById)[0] || "";
+            clientGameSelect.value = preferred;
+          }
         })
         .catch(function () {});
     }
@@ -211,9 +217,10 @@
             '<div class="token-label">' + escapeHtml(c.label || "Sem nome") + (c.email ? " · " + escapeHtml(c.email) : "") + "</div>" +
             '<div class="token-url">' + escapeHtml(c.url) + "</div>" +
             '<div class="token-status">' +
-            (c.revoked ? '<span class="pill pill--dead">revogado</span>' : '<span class="pill pill--free">ativo</span>') +
+            (c.revoked ? '<span class="pill pill--dead">revogado</span>' : c.claimedAt ? '<span class="pill pill--free">cadastrado</span>' : '<span class="pill">aguardando cadastro</span>') +
             "<span>criado " + fmtDate(c.createdAt) + "</span>" +
             (c.lastSeen ? "<span>· visto " + fmtDate(c.lastSeen) + "</span>" : "") +
+            (c.access ? "<span>· " + c.access.plays + " partida(s)</span>" : "") +
             "</div>" +
             '<div class="token-status" style="margin-top:6px">' + gamesHtml + "</div>" +
             '<div class="token-actions">' +
@@ -243,18 +250,34 @@
 
     clientForm.addEventListener("submit", function (e) {
       e.preventDefault();
+      if (clientGameSelect && !clientGameSelect.value) {
+        alert("Escolha o jogo deste link.");
+        return;
+      }
       clientCreateBtn.disabled = true;
       adminFetch("/admin/api/clients", {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ label: clientLabelInput.value.trim(), email: clientEmailInput.value.trim() }),
+        body: JSON.stringify({
+          label: clientLabelInput.value.trim(),
+          email: clientEmailInput.value.trim(),
+          gameId: clientGameSelect && clientGameSelect.value,
+        }),
       })
-        .then(function () {
+        .then(function (r) {
+          return r.json().then(function (data) { return { ok: r.ok, data: data }; });
+        })
+        .then(function (result) {
+          if (!result.ok) {
+            alert((result.data && result.data.error) || "Não foi possível gerar o link.");
+            return;
+          }
           clientLabelInput.value = "";
           clientEmailInput.value = "";
           loadClients();
         })
+        .catch(function () { alert("Falha de rede ao gerar o link."); })
         .finally(function () { clientCreateBtn.disabled = false; });
     });
 
@@ -309,6 +332,41 @@
     });
 
     loadClients();
+  }
+
+  // -------------------------------------------------------------------
+  // relatório de acessos
+  // -------------------------------------------------------------------
+
+  var accessReport = document.getElementById("access-report");
+  var accessReportSummary = document.getElementById("access-report-summary");
+  if (accessReport) {
+    function renderAccessReport(rows) {
+      var claimed = rows.filter(function (row) { return row.claimedAt; }).length;
+      var active = rows.filter(function (row) { return !row.revoked && row.lastSeen && Date.now() - row.lastSeen < 15 * 60 * 1000; }).length;
+      var plays = rows.reduce(function (sum, row) { return sum + ((row.access && row.access.plays) || 0); }, 0);
+      if (accessReportSummary) {
+        accessReportSummary.innerHTML = '<span class="report-stat"><strong>' + rows.length + '</strong> links</span><span class="report-stat"><strong>' + claimed + '</strong> cadastros</span><span class="report-stat"><strong>' + active + '</strong> online agora</span><span class="report-stat"><strong>' + plays + '</strong> partidas</span>';
+      }
+      if (!rows.length) {
+        accessReport.innerHTML = '<p class="admin-empty">Nenhum acesso registrado ainda.</p>';
+        return;
+      }
+      accessReport.innerHTML = '<div class="report-table"><div class="report-row report-row--head"><span>Pessoa</span><span>Jogo</span><span>Atividade</span></div>' + rows.map(function (row) {
+        var gameNames = (row.games || []).map(function (id) { return escapeHtml(allGamesById[id] || id); }).join(", ") || "—";
+        var last = row.lastSeen ? fmtDate(row.lastSeen) : "nunca";
+        var recent = ((row.access && row.access.events) || []).slice(0, 3).map(function (event) { return event.type; }).join(" · ") || "sem eventos";
+        return '<div class="report-row"><span><strong>' + escapeHtml(row.label) + '</strong><small>' + escapeHtml(row.email || "sem e-mail") + '</small></span><span>' + gameNames + '</span><span>' + ((row.access && row.access.visits) || 0) + ' acesso(s) · ' + ((row.access && row.access.plays) || 0) + ' partida(s)<small>último: ' + last + '</small><small>eventos: ' + escapeHtml(recent) + '</small></span></div>';
+      }).join("") + '</div>';
+    }
+    function loadAccessReport() {
+      adminFetch("/admin/api/access-report", { credentials: "same-origin" })
+        .then(function (r) { return r.status === 401 ? null : r.json(); })
+        .then(function (data) { if (data) renderAccessReport(data.report || []); })
+        .catch(function () { accessReport.innerHTML = '<p class="admin-empty">Falha ao carregar o relatório.</p>'; });
+    }
+    loadAccessReport();
+    setInterval(loadAccessReport, 20000);
   }
 
   // -------------------------------------------------------------------
@@ -451,7 +509,7 @@
           var badge = needsReview ? '<span class="game-card-status">revisão</span>' : "";
           var openBtn = needsReview
             ? ""
-            : '<a class="btn--ghost" href="/play/' + encodeURIComponent(g.gameId) + '" target="_blank" rel="noopener">Abrir</a>';
+            : '<a class="btn--ghost" href="/play/' + encodeURIComponent(g.gameId) + '" target="_blank" rel="noopener">Testar jogo</a>';
           var publishBtn = needsReview
             ? '<button type="button" class="btn" data-publish-game="' + escapeHtml(g.gameId) + '"' +
               (g.cover ? "" : " disabled title=\"Envie uma capa antes de publicar (Editar)\"") +
