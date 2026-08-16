@@ -11,6 +11,7 @@ const clientsStore = require("./lib/clients-store");
 const ownership = require("./lib/ownership");
 const accessRequests = require("./lib/access-requests");
 const { limiter } = require("./lib/rate-limit");
+const csrf = require("./lib/csrf");
 const libraryStore = require("./lib/library-store");
 const blob = require("./lib/blob");
 const gameEntry = require("./lib/game-entry");
@@ -26,7 +27,8 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // CDN pública do EmulatorJS. Pode ser trocada via env sem mexer em código.
-const EJS_CDN_URL = process.env.EMULATORJS_CDN_URL || "https://cdn.emulatorjs.org/stable/data/";
+const EJS_CDN_URL = process.env.EMULATORJS_CDN_URL || "https://cdn.emulatorjs.org/4.2.3/data/";
+const ASSET_VERSION = process.env.ASSET_VERSION || "20260816-boot-manual-v3";
 
 // cover pode ser um nome de arquivo local ("jogo.png", vira /covers/jogo.png)
 // ou uma URL completa (Vercel Blob, upload do admin em produção) — essa é
@@ -66,6 +68,20 @@ const SHARE_ICON_SVG =
   '<svg class="inline-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M8 7l4-4 4 4"/><rect x="4" y="11" width="16" height="10" rx="2"/></svg>';
 
 app.use(express.json({ limit: "16kb" }));
+
+// Proteções comuns para todas as respostas dinâmicas. A política de conteúdo
+// completa fica fora daqui porque o EmulatorJS usa scripts inline e assets de
+// CDN; estes headers já reduzem MIME sniffing, vazamento de referrer e framing.
+app.use((req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  if (process.env.VERCEL || process.env.NODE_ENV === "production") {
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
+  next();
+});
 
 // Os headers de cache que valem em produção estão no vercel.json — lá a
 // Vercel serve public/ direto pelo CDN e este middleware nem roda. Isto aqui
@@ -645,12 +661,23 @@ app.get("/play/:keyId", requireAccess, async (req, res) => {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <title>${escapeHtml(cfg.title)} · MYDE</title>
-  <link rel="stylesheet" href="/css/style.css" />
+  <link rel="stylesheet" href="/css/style.css?v=${ASSET_VERSION}" />
   <link rel="preconnect" href="https://cdn.emulatorjs.org" crossorigin />
   <link rel="preload" as="fetch" href="${escapeHtml(cfg.gameUrl)}" crossorigin />${PWA_HEAD}
 </head>
 <body class="player-body">
   <div id="load-badge" class="load-badge" hidden></div>
+  <div id="boot-retry" class="boot-retry" hidden role="alert" aria-live="polite">
+    <p id="boot-retry-message">O jogo demorou mais que o esperado.</p>
+    <button type="button" id="boot-retry-btn">Tentar iniciar</button>
+  </div>
+  <div id="audio-gate" class="audio-gate" hidden role="dialog" aria-modal="true" aria-labelledby="audio-gate-title">
+    <div class="audio-gate-card">
+      <p id="audio-gate-title">Toque para começar</p>
+      <p class="audio-gate-copy">O navegador precisa de uma interação para liberar o áudio do jogo.</p>
+      <button type="button" id="audio-gate-btn">Iniciar jogo</button>
+    </div>
+  </div>
   <a href="/" class="back-btn" aria-label="Voltar pra biblioteca">&larr;</a>
 
   <div class="quick-actions">
@@ -671,7 +698,7 @@ app.get("/play/:keyId", requireAccess, async (req, res) => {
   <div id="rotate-hint" class="rotate-hint">🔄 Gire o celular pra jogar em paisagem</div>
 
   <script>window.__PLAY__ = ${jsonForScript(playConfig)};</script>
-  <script src="/js/player.js"></script>
+  <script src="/js/player.js?v=${ASSET_VERSION}"></script>
   <script src="${EJS_CDN_URL}loader.js"></script>
 </body>
 </html>`);
@@ -715,6 +742,7 @@ function adminSetupPage(res) {
 app.get("/admin", async (req, res) => {
   if (!access.adminConfigured) return adminSetupPage(res);
   if (!access.isAdmin(req)) return adminLoginPage(res);
+  const csrfToken = csrf.setToken(res);
 
   // Painel de biblioteca (Fase 9) — contagem simples a partir do catálogo já
   // carregado, sem escanear o Blob. "Verificar biblioteca" cruzando
@@ -900,7 +928,8 @@ app.get("/admin", async (req, res) => {
   </div>
   <script>window.__PLATFORMS__ = ${jsonForScript(
     platforms.list().map((p) => ({ id: p.id, label: p.label, extensions: p.extensions }))
-  )};</script>
+  )};
+  window.__ADMIN_CSRF__ = ${jsonForScript(csrfToken)};</script>
   <script src="/js/admin.js" defer></script>
 </body>
 </html>`);
@@ -918,6 +947,7 @@ app.get("/admin", async (req, res) => {
 app.get("/admin/import", (req, res) => {
   if (!access.adminConfigured) return adminSetupPage(res);
   if (!access.isAdmin(req)) return adminLoginPage(res);
+  const csrfToken = csrf.setToken(res);
 
   res.send(`<!DOCTYPE html>
 <html lang="pt-BR">
@@ -973,6 +1003,7 @@ app.get("/admin/import", (req, res) => {
   </div>
   <script>
     window.__PLATFORMS__ = ${jsonForScript(platforms.list().map((p) => ({ id: p.id, label: p.label, extensions: p.extensions })))};
+    window.__ADMIN_CSRF__ = ${jsonForScript(csrfToken)};
     window.__IMPORT_LIMITS__ = ${jsonForScript(
       Object.fromEntries(platforms.list().map((p) => [p.id, p.maxRomBytes]))
     )};
@@ -1002,9 +1033,24 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+function requireAdminMutation(req, res, next) {
+  if (!access.isAdmin(req)) return res.status(401).json({ error: "não autorizado" });
+  if (!csrf.isValid(req)) {
+    return res.status(403).json({ error: "requisição administrativa sem token CSRF válido; recarregue o painel" });
+  }
+  next();
+}
+
 function publicOrigin(req) {
-  const proto = req.headers["x-forwarded-proto"] || req.protocol || "https";
-  const host = req.headers["x-forwarded-host"] || req.headers.host;
+  const configured = String(process.env.PUBLIC_ORIGIN || "").trim().replace(/\/+$/, "");
+  if (/^https?:\/\/[^/]+$/i.test(configured)) return configured;
+
+  const forwardedProto = String(req.headers["x-forwarded-proto"] || "")
+    .split(",")[0]
+    .trim()
+    .toLowerCase();
+  const proto = forwardedProto === "http" || forwardedProto === "https" ? forwardedProto : req.protocol || "https";
+  const host = String(req.headers.host || `localhost:${PORT}`).trim();
   return `${proto}://${host}`;
 }
 
@@ -1031,7 +1077,7 @@ app.get("/admin/api/tokens", requireAdmin, async (req, res) => {
   }
 });
 
-app.post("/admin/api/tokens", requireAdmin, async (req, res) => {
+app.post("/admin/api/tokens", requireAdminMutation, async (req, res) => {
   try {
     const token = access.newToken(String(req.body.label || "").slice(0, 60));
     await store.put(token);
@@ -1055,17 +1101,17 @@ async function mutate(req, res, fn) {
   }
 }
 
-app.post("/admin/api/tokens/:id/revoke", requireAdmin, (req, res) =>
+app.post("/admin/api/tokens/:id/revoke", requireAdminMutation, (req, res) =>
   mutate(req, res, (t) => { t.revoked = true; })
 );
 
-app.post("/admin/api/tokens/:id/unrevoke", requireAdmin, (req, res) =>
+app.post("/admin/api/tokens/:id/unrevoke", requireAdminMutation, (req, res) =>
   mutate(req, res, (t) => { t.revoked = false; })
 );
 
 // Solta o aparelho: o próximo que abrir o link fica com ele. É a saída pra
 // quem trocou de celular ou limpou os dados do navegador.
-app.post("/admin/api/tokens/:id/reset", requireAdmin, (req, res) =>
+app.post("/admin/api/tokens/:id/reset", requireAdminMutation, (req, res) =>
   mutate(req, res, (t) => {
     t.boundDevice = null;
     t.boundAt = null;
@@ -1073,7 +1119,7 @@ app.post("/admin/api/tokens/:id/reset", requireAdmin, (req, res) =>
   })
 );
 
-app.delete("/admin/api/tokens/:id", requireAdmin, async (req, res) => {
+app.delete("/admin/api/tokens/:id", requireAdminMutation, async (req, res) => {
   try {
     await store.remove(req.params.id);
     res.json({ ok: true });
@@ -1123,7 +1169,7 @@ app.get("/admin/api/clients", requireAdmin, async (req, res) => {
   }
 });
 
-app.post("/admin/api/clients", requireAdmin, async (req, res) => {
+app.post("/admin/api/clients", requireAdminMutation, async (req, res) => {
   try {
     const client = clients.newClient(req.body.label, req.body.email);
     await clientsStore.put(client);
@@ -1134,7 +1180,7 @@ app.post("/admin/api/clients", requireAdmin, async (req, res) => {
   }
 });
 
-app.post("/admin/api/clients/:id/revoke", requireAdmin, async (req, res) => {
+app.post("/admin/api/clients/:id/revoke", requireAdminMutation, async (req, res) => {
   try {
     const client = await clientsStore.get(req.params.id);
     if (!client) return res.status(404).json({ error: "não encontrado" });
@@ -1147,7 +1193,7 @@ app.post("/admin/api/clients/:id/revoke", requireAdmin, async (req, res) => {
   }
 });
 
-app.post("/admin/api/clients/:id/unrevoke", requireAdmin, async (req, res) => {
+app.post("/admin/api/clients/:id/unrevoke", requireAdminMutation, async (req, res) => {
   try {
     const client = await clientsStore.get(req.params.id);
     if (!client) return res.status(404).json({ error: "não encontrado" });
@@ -1160,7 +1206,7 @@ app.post("/admin/api/clients/:id/unrevoke", requireAdmin, async (req, res) => {
   }
 });
 
-app.delete("/admin/api/clients/:id", requireAdmin, async (req, res) => {
+app.delete("/admin/api/clients/:id", requireAdminMutation, async (req, res) => {
   try {
     const games = await ownership.getClientGames(req.params.id);
     await Promise.all(games.map((gameId) => ownership.removeOwner(gameId)));
@@ -1172,7 +1218,7 @@ app.delete("/admin/api/clients/:id", requireAdmin, async (req, res) => {
   }
 });
 
-app.post("/admin/api/clients/:id/games", requireAdmin, async (req, res) => {
+app.post("/admin/api/clients/:id/games", requireAdminMutation, async (req, res) => {
   try {
     const client = await clientsStore.get(req.params.id);
     if (!client) return res.status(404).json({ error: "não encontrado" });
@@ -1186,7 +1232,7 @@ app.post("/admin/api/clients/:id/games", requireAdmin, async (req, res) => {
   }
 });
 
-app.delete("/admin/api/clients/:id/games/:gameId", requireAdmin, async (req, res) => {
+app.delete("/admin/api/clients/:id/games/:gameId", requireAdminMutation, async (req, res) => {
   try {
     const owner = await ownership.getOwner(req.params.gameId);
     if (owner !== req.params.id) return res.status(404).json({ error: "esta conta não é dona desse jogo" });
@@ -1225,7 +1271,7 @@ app.get("/admin/api/access-requests", requireAdmin, async (req, res) => {
   }
 });
 
-app.post("/admin/api/access-requests/:id/approve", requireAdmin, async (req, res) => {
+app.post("/admin/api/access-requests/:id/approve", requireAdminMutation, async (req, res) => {
   try {
     const request = await accessRequests.get(req.params.id);
     if (!request || request.status !== "pending") {
@@ -1255,7 +1301,7 @@ app.post("/admin/api/access-requests/:id/approve", requireAdmin, async (req, res
   }
 });
 
-app.post("/admin/api/access-requests/:id/deny", requireAdmin, async (req, res) => {
+app.post("/admin/api/access-requests/:id/deny", requireAdminMutation, async (req, res) => {
   try {
     const request = await accessRequests.resolveRequest(req.params.id, "denied");
     if (!request) return res.status(404).json({ error: "não encontrado (talvez já resolvido)" });
@@ -1293,7 +1339,7 @@ const uploadMiddleware = multer({
 // (usa o fallback de disco do fluxo antigo).
 // ---------------------------------------------------------------------------
 
-app.post("/admin/api/blob/upload-token", requireAdmin, async (req, res) => {
+app.post("/admin/api/blob/upload-token", requireAdminMutation, async (req, res) => {
   if (!blob.durable) {
     return res.status(503).json({
       error: "Upload direto pro Blob indisponível — configure BLOB_READ_WRITE_TOKEN na Vercel.",
@@ -1351,7 +1397,7 @@ app.get("/admin/api/games", requireAdmin, async (req, res) => {
 
 app.post(
   "/admin/api/games",
-  requireAdmin,
+  requireAdminMutation,
   uploadMiddleware.fields([
     { name: "rom", maxCount: 1 },
     { name: "cover", maxCount: 1 },
@@ -1416,7 +1462,7 @@ app.post(
 // navegador calcula o hash da ROM local (Web Crypto) e pergunta aqui antes
 // de gastar banda subindo pro Blob. Mesmo índice usado pelo upload único
 // (POST /admin/api/games), só que consultado sem exigir arquivo nenhum.
-app.post("/admin/api/games/check-hash", requireAdmin, async (req, res) => {
+app.post("/admin/api/games/check-hash", requireAdminMutation, async (req, res) => {
   try {
     const hash = String((req.body && req.body.hash) || "");
     if (!/^[0-9a-f]{64}$/.test(hash)) {
@@ -1433,7 +1479,7 @@ app.post("/admin/api/games/check-hash", requireAdmin, async (req, res) => {
 // Fecha o fluxo de importação em lote: a ROM já está no Blob (upload direto
 // do navegador, Fase 4) — aqui só valida e grava o metadado. Sempre entra
 // como "review", nunca publica sozinho.
-app.post("/admin/api/games/import-commit", requireAdmin, async (req, res) => {
+app.post("/admin/api/games/import-commit", requireAdminMutation, async (req, res) => {
   if (!blob.durable) {
     return res.status(503).json({
       error: "Importação em lote precisa do Vercel Blob configurado (BLOB_READ_WRITE_TOKEN).",
@@ -1478,7 +1524,7 @@ app.post("/admin/api/games/import-commit", requireAdmin, async (req, res) => {
 
 app.patch(
   "/admin/api/games/:id",
-  requireAdmin,
+  requireAdminMutation,
   uploadMiddleware.fields([{ name: "cover", maxCount: 1 }]),
   async (req, res) => {
     try {
@@ -1528,7 +1574,7 @@ app.patch(
   }
 );
 
-app.delete("/admin/api/games/:id", requireAdmin, async (req, res) => {
+app.delete("/admin/api/games/:id", requireAdminMutation, async (req, res) => {
   try {
     const game = await libraryStore.get(req.params.id);
     if (!game) return res.status(404).json({ error: "não encontrado" });

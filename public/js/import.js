@@ -14,6 +14,18 @@ import { upload } from "https://esm.sh/@vercel/blob@2.7.0/client";
 
 const PLATFORMS = window.__PLATFORMS__ || [];
 const BLOB_READY = window.__BLOB_READY__ === true;
+const csrfToken = window.__ADMIN_CSRF__ || "";
+
+function adminFetch(url, options = {}) {
+  options.credentials = "same-origin";
+  const method = String(options.method || "GET").toUpperCase();
+  if (method !== "GET" && method !== "HEAD" && method !== "OPTIONS") {
+    const headers = new Headers(options.headers || {});
+    headers.set("X-CSRF-Token", csrfToken);
+    options.headers = headers;
+  }
+  return fetch(url, options);
+}
 
 // Extensão -> plataforma, só quando a extensão pertence a uma única
 // plataforma. Várias plataformas de archive (arcade, mame, dos) usam
@@ -112,7 +124,7 @@ async function processItem(item) {
 
     item.status = "checking";
     render();
-    const dup = await fetch("/admin/api/games/check-hash", {
+    const dup = await adminFetch("/admin/api/games/check-hash", {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
@@ -132,12 +144,12 @@ async function processItem(item) {
     const blob = await upload(pathname, item.file, {
       access: "public",
       handleUploadUrl: "/admin/api/blob/upload-token",
-      clientPayload: JSON.stringify({ kind: "roms", platform: item.platform }),
+      clientPayload: JSON.stringify({ kind: "roms", platform: item.platform, csrfToken }),
     });
 
     item.status = "committing";
     render();
-    const commitRes = await fetch("/admin/api/games/import-commit", {
+    const commitRes = await adminFetch("/admin/api/games/import-commit", {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },

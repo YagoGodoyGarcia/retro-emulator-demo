@@ -1264,6 +1264,82 @@ button {
   opacity: 0.3;
 }
 
+.boot-retry {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 40;
+  width: min(86vw, 340px);
+  padding: 18px;
+  transform: translate(-50%, -50%);
+  border: 1px solid rgba(196, 181, 253, 0.32);
+  border-radius: 18px;
+  background: rgba(10, 10, 16, 0.92);
+  color: #fff;
+  text-align: center;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.45);
+}
+
+.boot-retry p {
+  margin: 0 0 14px;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.boot-retry button {
+  min-height: 42px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 999px;
+  background: #c4b5fd;
+  color: #171226;
+  font: inherit;
+  font-weight: 800;
+}
+
+.audio-gate {
+  position: absolute;
+  inset: 0;
+  z-index: 45;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.56);
+}
+
+.audio-gate[hidden] { display: none; }
+
+.audio-gate-card {
+  width: min(86vw, 360px);
+  padding: 22px;
+  border: 1px solid rgba(196, 181, 253, 0.38);
+  border-radius: 20px;
+  background: rgba(10, 10, 16, 0.96);
+  color: #fff;
+  text-align: center;
+  box-shadow: 0 20px 70px rgba(0, 0, 0, 0.55);
+}
+
+.audio-gate-card p { margin: 0; }
+.audio-gate-copy {
+  margin-top: 8px !important;
+  color: #c7c5d5;
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.audio-gate button {
+  min-height: 48px;
+  margin-top: 18px;
+  padding: 0 24px;
+  border: 0;
+  border-radius: 999px;
+  background: #c4b5fd;
+  color: #171226;
+  font: inherit;
+  font-weight: 900;
+}
+
 /* Sem giro "fake" por CSS: o EmulatorJS posiciona os controles virtuais pelo
    tamanho real da janela, e girar só na aparência joga os botões pro lugar
    errado. Isso aqui é só o lembrete. */
@@ -1286,11 +1362,13 @@ button {
   .rotate-hint { display: none; }
 }
 
-/* O botão real do EmulatorJS fica escondido — EJS_startOnLoaded (player.js)
-   já clica nele sozinho, então ele nunca precisa aparecer visualmente
-   (evita um flash da UI própria do EmulatorJS antes do auto-clique). */
+/* O botão nativo fica visível de propósito: o início precisa acontecer
+   dentro de um gesto real do usuário para o navegador liberar o áudio e o
+   primeiro frame no mobile. */
 .ejs_start_button {
-  display: none !important;
+  display: flex !important;
+  min-height: 48px;
+  border-radius: 999px;
 }
 
 /* =====================================================================

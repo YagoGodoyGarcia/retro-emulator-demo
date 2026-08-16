@@ -53,15 +53,18 @@ Abre em `http://localhost:3000`.
 | Variável | Para quê |
 |---|---|
 | `PORT` | Porta do servidor local (padrão 3000) |
+| `PUBLIC_ORIGIN` | URL canônica sem barra final para links e QR codes do painel; recomendada em produção |
 | `ACCESS_MODE` | `open` (padrão) ou `locked` (exige link de convite) |
 | `ADMIN_PASSWORD` | Senha do painel `/admin` |
 | `ACCESS_SECRET` | Segredo fixo para assinar cookies de sessão — gere com `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
 | `KV_REST_API_URL` / `KV_REST_API_TOKEN` | Redis (Vercel KV/Upstash) — obrigatório em produção para persistir links |
 | `BLOB_READ_WRITE_TOKEN` | Vercel Blob — necessário para upload de ROM funcionar em produção |
-| `EMULATORJS_CDN_URL` | CDN do EmulatorJS (padrão: `cdn.emulatorjs.org`) |
+| `EMULATORJS_CDN_URL` | CDN do EmulatorJS (padrão: `https://cdn.emulatorjs.org/4.2.3/data/`) |
 | `GAMEURL_<ID>` | Override pontual da ROM de um jogo sem editar o JSON |
 
 Veja `.env.example` para o arquivo completo comentado.
+
+O painel administrativo usa um token CSRF assinado, enviado por header nas operações que alteram dados. Em produção, defina `PUBLIC_ORIGIN` com o domínio oficial para que links e QR codes não dependam de headers de proxy encaminhados pela requisição.
 
 ## Deploy na Vercel
 
@@ -137,6 +140,10 @@ Para testar uma ROM própria **só na sua máquina**, sem publicar nada, use a
 pasta `public/roms/private/` (já está no `.gitignore`) e aponte `gameUrl`
 para ela no seu `config/keychains.json` local — não faça commit dessa
 alteração.
+
+## Inicialização e desempenho no celular
+
+O player usa o CDN versionado do EmulatorJS para manter loader, core e cache na mesma versão. A vitrine pré-carrega apenas a ROM no celular; o core comprimido fica para a tela do player, evitando concorrência durante a navegação. O início automático foi desativado de propósito: depois que o core termina de carregar, o botão nativo `START GAME` do EmulatorJS inicia o jogo dentro de um gesto real do usuário, evitando que o navegador deixe o primeiro frame preso em uma tela cinza por bloqueio de autoplay. O cache do service worker e os assets do player são versionados para que a atualização seja aplicada na primeira navegação, sem depender de um segundo `F5`.
 
 ## Save state
 
