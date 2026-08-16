@@ -455,10 +455,15 @@
       // O primeiro frame detectado pode ainda ser o logo da SEGA. Há uma
       // janela curta de tentativas para que pelo menos um START caia na tela
       // de título; depois A confirma 1 PLAYER no Sonic 2.
-      [7000, 9500, 12000].forEach(function (ms) {
+      [8000, 11000, 14000].forEach(function (ms) {
         setTimeout(tapStart, ms);
       });
-      setTimeout(function () { tapButton(A_BUTTON); }, 13500);
+      // A tela de título pode demorar alguns segundos para aceitar a
+      // confirmação depois de START; duas tentativas espaçadas cobrem esse
+      // intervalo sem manter nenhum timer permanente.
+      [20000, 24000].forEach(function (ms) {
+        setTimeout(function () { tapButton(A_BUTTON); }, ms);
+      });
       return;
     }
     var delays = [1400, 2300, 3200, 4100];
