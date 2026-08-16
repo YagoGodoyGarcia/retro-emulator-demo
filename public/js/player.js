@@ -452,11 +452,13 @@
   function skipIntro() {
     if (CFG.skipIntro === false) return;
     if (CFG.core === "segaMD") {
-      // No Mega Drive, Sonic 2 passa por duas telas: START abre o menu e A
-      // confirma 1 PLAYER. Sem a segunda etapa o usuário vê o logo animado,
-      // mas ainda não está dentro da fase.
-      setTimeout(tapStart, 1400);
-      setTimeout(function () { tapButton(A_BUTTON); }, 2800);
+      // O primeiro frame detectado pode ainda ser o logo da SEGA. Há uma
+      // janela curta de tentativas para que pelo menos um START caia na tela
+      // de título; depois A confirma 1 PLAYER no Sonic 2.
+      [7000, 9500, 12000].forEach(function (ms) {
+        setTimeout(tapStart, ms);
+      });
+      setTimeout(function () { tapButton(A_BUTTON); }, 13500);
       return;
     }
     var delays = [1400, 2300, 3200, 4100];
