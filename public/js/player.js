@@ -701,12 +701,32 @@
   }
 
   // ------------------------------------------------------------------
-  // clipe automático da sessão (canvas.captureStream + MediaRecorder)
+  // clipe automático da sessão (canvas.captureStream + MediaRecorder) —
+  // SÓ PRO ADMIN (CFG.isAdmin, computado em server.js/GET /play/:keyId)
+  //
+  // Histórico: ativava pra qualquer jogador antes, e um teste real no
+  // Android relatou o jogo perceptivelmente mais lento pra iniciar — corte
+  // imediato (2026-08-17) foi tirar isso do caminho do jogador comum
+  // inteiramente. Investiguei a causa depois: um benchmark isolado
+  // (canvas 2D e canvas WebGL, já que o EmulatorJS renderiza via WebGL1 —
+  // EJS_forceLegacyCores) não mediu custo síncrono adicional por frame de
+  // captureStream()/MediaRecorder rodando em paralelo, em Chrome desktop.
+  // MAS: não consegui carregar o core WASM de verdade do EmulatorJS em
+  // nenhum ambiente de teste disponível (a CDN não terminava de carregar
+  // nem na produção ao vivo, sem nenhuma mudança minha) nem reproduzir
+  // hardware de GPU Android real — então não dá pra afirmar com certeza
+  // que a causa era só isso, e a codificação de vídeo (que roda numa
+  // thread própria, fora do que o benchmark síncrono consegue medir) seguia
+  // sendo suspeita plausível. Por isso: o gate de admin fica definitivo (é
+  // exatamente o que devia ser desde o início — recurso de teste interno,
+  // não de produto pro jogador), e os parâmetros abaixo (15fps, chunk a
+  // cada 2s, não 30fps/1s) ficam mais conservadores como margem de
+  // segurança, mesmo sem conseguir provar que precisava.
   //
   // 100% no navegador, sem servidor: grava o canvas do jogo desde que a
-  // partida começa até um teto de tempo (ou até a pessoa sair da tela),
-  // e deixa baixar o clipe pronto no final. Só vídeo — sem áudio: capturar
-  // o áudio exigiria plugar um MediaStreamAudioDestinationNode dentro do
+  // partida começa até um teto de tempo (ou até a pessoa sair da tela), e
+  // deixa baixar o clipe pronto no final. Só vídeo — sem áudio: capturar o
+  // áudio exigiria plugar um MediaStreamAudioDestinationNode dentro do
   // AudioContext que o EmulatorJS já gerencia sozinho, e esse é um dos
   // pontos mais frágeis do boot no mobile (ver o desbloqueio de áudio logo
   // abaixo) — mexer nele sem aparelho físico pra testar é risco alto pra
@@ -773,7 +793,14 @@
     if (!mimeType) { setClipButtonState("unsupported"); return; }
 
     try {
-      var stream = canvas.captureStream(30);
+      // 15fps (não 30): captureStream() num canvas WebGL (EmulatorJS usa
+      // WebGL1, forçado por EJS_forceLegacyCores) força a GPU a extrair o
+      // frame renderizado a cada captura — mais caro que canvas 2D. Não
+      // consegui medir o custo real disso em hardware Android nem no core
+      // WASM de verdade (CDN do EmulatorJS não carregou em nenhum ambiente
+      // de teste disponível aqui), então corta pela metade como margem de
+      // segurança em vez de assumir que 30fps é inofensivo sem medir.
+      var stream = canvas.captureStream(15);
       recorder = new MediaRecorder(stream, { mimeType: mimeType });
     } catch (e) {
       recorder = null;
@@ -801,7 +828,10 @@
     };
 
     try {
-      recorder.start(1000); // timeslice: chunks progressivos, não um Blob gigante só no fim
+      // timeslice 2000ms (não 1000ms): menos vezes que o encoder é forçado
+      // a fechar um chunk, ainda progressivo o bastante pra não acumular
+      // um Blob gigante só no fim.
+      recorder.start(2000);
     } catch (e) {
       recorder = null;
       setClipButtonState("unsupported");
