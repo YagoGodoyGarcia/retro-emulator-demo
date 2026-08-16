@@ -1464,6 +1464,42 @@ button {
   font-weight: 900;
 }
 
+/* #browser-gate reaproveita o cartão do .audio-gate, só troca os botões:
+   um link primário (força abrir no Safari via x-safari-, ver player.js) e
+   um botão secundário discreto pra quem quiser tentar mesmo assim. */
+.browser-gate-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  margin-top: 18px;
+  padding: 0 24px;
+  border-radius: 999px;
+  background: #c4b5fd;
+  color: #171226;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+/* .audio-gate button já estiliza qualquer <button> dentro do cartão como
+   CTA principal (roxo) — precisa de mais especificidade que essa regra
+   pra ficar discreto de verdade. */
+.audio-gate #browser-gate-dismiss {
+  display: block;
+  width: 100%;
+  min-height: 40px;
+  margin-top: 10px !important;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #9491ab;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
 /* Sem giro "fake" por CSS: o EmulatorJS posiciona os controles virtuais pelo
    tamanho real da janela, e girar só na aparência joga os botões pro lugar
    errado. Isso aqui é só o lembrete. */

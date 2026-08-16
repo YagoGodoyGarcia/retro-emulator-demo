@@ -29,6 +29,52 @@
     badge.textContent = "carregando...";
   }
 
+  // ------------------------------------------------------------------
+  // aviso pra quem está fora do Safari no iOS/iPadOS
+  //
+  // A Apple obriga todo navegador no iOS a rodar o motor do WebKit por
+  // baixo, então "Chrome no iPhone" parece Chrome mas roda dentro de um
+  // WKWebView mais restrito que o Safari de verdade — sem Fullscreen API,
+  // com política de áudio/memória diferente. Reportado ao vivo: Sonic
+  // abria a UI do jogo (controle virtual aparecia) mas o canvas ficava
+  // preto pra sempre no Chrome-iOS; no Safari, no mesmo aparelho, carregou
+  // normal. `forceLegacyCores` já cobre o bug de WebGL2 do Safari, mas
+  // esse é um problema diferente, específico de navegador-dentro-do-iOS,
+  // sem como reproduzir/depurar sem o aparelho — a saída mais segura é
+  // avisar cedo em vez de deixar a pessoa presa numa tela preta sem
+  // explicação nenhuma.
+  //
+  // `x-safari-<url>` é um esquema de URL não documentado oficialmente, mas
+  // estável há anos, que força o iOS a abrir o link no Safari de verdade
+  // mesmo vindo de dentro de outro navegador/app.
+  // ------------------------------------------------------------------
+
+  (function warnIfNonSafariIOS() {
+    var browserGate = document.getElementById("browser-gate");
+    if (!browserGate) return;
+    var ua = navigator.userAgent || "";
+    var isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    if (!isIOS) return;
+    // Safari de verdade tem "Safari" no UA e nenhum desses outros tokens
+    // (todo navegador de terceiro no iOS também injeta "Safari" no UA por
+    // compatibilidade, então não dá pra checar só a presença dele).
+    var isKnownNonSafari = /CriOS|FxiOS|EdgiOS|OPiOS|GSA|Mercury|DuckDuckGo/.test(ua);
+    if (!isKnownNonSafari) return;
+    var dismissKey = "myde-browser-gate-dismissed:" + CFG.id;
+    try { if (sessionStorage.getItem(dismissKey) === "1") return; } catch (e) {}
+
+    var link = document.getElementById("browser-gate-link");
+    if (link) link.href = "x-safari-" + window.location.href;
+    var dismissBtn = document.getElementById("browser-gate-dismiss");
+    if (dismissBtn) {
+      dismissBtn.addEventListener("click", function () {
+        browserGate.hidden = true;
+        try { sessionStorage.setItem(dismissKey, "1"); } catch (e) {}
+      });
+    }
+    browserGate.hidden = false;
+  })();
+
   function showRetry(message) {
     if (gameStarted || !retryBox) return;
     if (retryMessage) retryMessage.textContent = message;

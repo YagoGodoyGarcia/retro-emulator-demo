@@ -29,7 +29,7 @@ const PORT = process.env.PORT || 3000;
 
 // CDN pública do EmulatorJS. Pode ser trocada via env sem mexer em código.
 const EJS_CDN_URL = process.env.EMULATORJS_CDN_URL || "https://cdn.emulatorjs.org/4.2.3/data/";
-const ASSET_VERSION = process.env.ASSET_VERSION || "20260816-ux-fixes-v1";
+const ASSET_VERSION = process.env.ASSET_VERSION || "20260816-ux-fixes-v2";
 
 // cover pode ser um nome de arquivo local ("jogo.png", vira /covers/jogo.png)
 // ou uma URL completa (Vercel Blob, upload do admin em produção) — essa é
@@ -835,6 +835,14 @@ app.get("/play/:keyId", requireAccess, async (req, res) => {
       <p id="audio-gate-title">Toque para começar</p>
       <p class="audio-gate-copy">O navegador precisa de uma interação para liberar o áudio do jogo.</p>
       <button type="button" id="audio-gate-btn">Iniciar jogo</button>
+    </div>
+  </div>
+  <div id="browser-gate" class="audio-gate" hidden role="dialog" aria-modal="true" aria-labelledby="browser-gate-title">
+    <div class="audio-gate-card">
+      <p id="browser-gate-title">Abra no Safari</p>
+      <p class="audio-gate-copy">Esse navegador não roda o jogo direito no iPhone/iPad. Toque abaixo pra abrir no Safari.</p>
+      <a id="browser-gate-link" class="browser-gate-btn" href="#">Abrir no Safari</a>
+      <button type="button" id="browser-gate-dismiss" class="browser-gate-dismiss">Continuar mesmo assim</button>
     </div>
   </div>
   <a href="/" class="back-btn" aria-label="Voltar pra biblioteca">&larr;</a>
