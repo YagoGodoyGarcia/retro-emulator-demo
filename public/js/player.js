@@ -35,6 +35,38 @@
     retryBox.hidden = false;
   }
 
+  // ------------------------------------------------------------------
+  // erro de rede/CDN — diferente de "só demorando"
+  //
+  // Sem isso, CDN fora do ar ou bloqueado (rede corporativa, bloqueador de
+  // anúncio agressivo) e "conexão lenta" pareciam a MESMA coisa pro
+  // jogador: preso em "carregando..." até o timer de 30-60s mostrar a
+  // mesma mensagem genérica de sempre, sem dizer que o problema é de rede.
+  // Aqui a gente escuta falha de carregamento de qualquer recurso vindo do
+  // CDN do EmulatorJS (loader.js e o que ele injeta depois, como o core) e
+  // mostra o motivo na hora, sem esperar o timer normal.
+  // ------------------------------------------------------------------
+
+  var cdnOrigin = null;
+  try { cdnOrigin = new URL(CFG.cdn, window.location.href).origin; } catch (e) {}
+
+  function showCdnError() {
+    if (gameStarted) return;
+    if (retryTimer) {
+      clearTimeout(retryTimer);
+      retryTimer = null;
+    }
+    showRetry("Sem conexão com o servidor do jogo. Confira sua internet e toque para tentar de novo.");
+  }
+
+  window.addEventListener("error", function (event) {
+    if (!cdnOrigin || gameStarted) return;
+    var target = event && event.target;
+    if (!target || target === window) return;
+    var src = target.src || target.href || "";
+    if (src.indexOf(cdnOrigin) === 0) showCdnError();
+  }, true);
+
   function retryBoot() {
     if (gameStarted) return;
     try { sessionStorage.setItem(retryKey, "1"); } catch (e) {}
@@ -87,7 +119,13 @@
     var seconds = ((performance.now() - loadStartedAt) / 1000).toFixed(1);
     if (badge) {
       badge.textContent = "pronto em " + seconds + "s";
-      setTimeout(function () { badge.classList.add("load-badge--fade"); }, 2200);
+      setTimeout(function () {
+        badge.classList.add("load-badge--fade");
+        // Some de vez depois da transição de opacidade (0.6s no CSS) — o
+        // número não serve mais pra nada depois do boot e ficava pairando
+        // no canto a sessão de jogo inteira.
+        setTimeout(function () { badge.hidden = true; }, 650);
+      }, 2200);
     }
     skipIntro();
     // 12s de folga sobre os até 10s que o checkStarted() do EmulatorJS ainda
@@ -98,7 +136,10 @@
   function watchFirstFrame() {
     if (!emulatorStarted || gameStarted) return;
     kickEmulator();
-    if (audioIsSuspended() || (navigator.maxTouchPoints > 0 && !gameStarted)) showAudioGate();
+    // Só mostra o gate se o áudio estiver mesmo suspenso — checar só
+    // "é touch device" fazia esse modal aparecer em todo celular, mesmo
+    // quando o áudio já tinha destravado no toque do botão de start.
+    if (audioIsSuspended()) showAudioGate();
     var current = frameSignature();
     if (current) {
       markReady();
@@ -449,6 +490,15 @@
 
   function tapStart() { tapButton(START_BUTTON); }
 
+  // Em conexão lenta o core pode continuar "aquecendo" (descompressão,
+  // primeiros frames de verdade sendo desenhados) por mais tempo depois do
+  // primeiro frame detectado — os mesmos tempos fixos que funcionam numa
+  // rede normal caem cedo demais aí e o toque de START pode não cair na
+  // tela de título. Reusa a mesma detecção de rede lenta já usada pro
+  // timer de retry, só alongando os intervalos em vez de reinventar a
+  // lógica de skip.
+  var skipIntroScale = slowConnection ? 1.4 : 1;
+
   function skipIntro() {
     if (CFG.skipIntro === false) return;
     if (CFG.core === "segaMD") {
@@ -456,18 +506,18 @@
       // janela curta de tentativas para que pelo menos um START caia na tela
       // de título; depois A confirma 1 PLAYER no Sonic 2.
       [8000, 11000, 14000].forEach(function (ms) {
-        setTimeout(tapStart, ms);
+        setTimeout(tapStart, ms * skipIntroScale);
       });
       // A tela de título pode demorar alguns segundos para aceitar a
       // confirmação depois de START; duas tentativas espaçadas cobrem esse
       // intervalo sem manter nenhum timer permanente.
       [20000, 24000].forEach(function (ms) {
-        setTimeout(function () { tapButton(A_BUTTON); }, ms);
+        setTimeout(function () { tapButton(A_BUTTON); }, ms * skipIntroScale);
       });
       return;
     }
     var delays = [1400, 2300, 3200, 4100];
-    delays.forEach(function (ms) { setTimeout(tapStart, ms); });
+    delays.forEach(function (ms) { setTimeout(tapStart, ms * skipIntroScale); });
   }
 
   // ------------------------------------------------------------------
@@ -477,6 +527,8 @@
   window.EJS_onGameStart = function () {
     emulatorStarted = true;
     if (badge) badge.textContent = "iniciando...";
+    if (saveBtn) saveBtn.disabled = false;
+    if (loadBtn) loadBtn.disabled = false;
     kickEmulator();
     firstFrameTimer = setTimeout(watchFirstFrame, 250);
   };
@@ -525,6 +577,11 @@
   // screenshot que é só decorativa aqui).
   var saveBtn = document.getElementById("quick-save");
   var loadBtn = document.getElementById("quick-load");
+  // Ficam escondidos atrás do menu "⋯", mas continuam no DOM desde o início
+  // — desabilita os dois até o jogo existir de fato, senão um toque cedo
+  // demais (antes do core/ROM terminar) não fazia nada, sem nenhum aviso.
+  if (saveBtn) saveBtn.disabled = true;
+  if (loadBtn) loadBtn.disabled = true;
   var playerMenuToggle = document.getElementById("player-menu-toggle");
   var quickActions = document.getElementById("quick-actions");
   if (playerMenuToggle && quickActions) {
@@ -542,7 +599,7 @@
   if (saveBtn) {
     saveBtn.addEventListener("click", function () {
       var emu = window.EJS_emulator;
-      if (!emu || !emu.gameManager) return;
+      if (!emu || !emu.gameManager) { showToast("Aguarda o jogo carregar"); return; }
       try {
         var state = emu.gameManager.getState();
         emu.storage.states.put(saveFileName(), state);
@@ -555,7 +612,7 @@
   if (loadBtn) {
     loadBtn.addEventListener("click", function () {
       var emu = window.EJS_emulator;
-      if (!emu || !emu.gameManager) return;
+      if (!emu || !emu.gameManager) { showToast("Aguarda o jogo carregar"); return; }
       emu.storage.states.get(saveFileName()).then(function (state) {
         if (!state) {
           showToast("Nenhum save salvo ainda");
