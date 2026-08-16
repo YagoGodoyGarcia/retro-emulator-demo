@@ -8,8 +8,8 @@
 // pro navegador — resposta opaca de terceiro em cache dá mais dor de cabeça
 // (tamanho, revalidação) do que ganho, e o cache HTTP normal já cobre isso.
 
-const VERSION = "myde-v14";
-const ASSET_VERSION = "20260816-mobile-product-v2";
+const VERSION = "myde-v15";
+const ASSET_VERSION = "20260816-ux-fixes-v1";
 const SHELL_CACHE = `${VERSION}-shell`;
 const ASSET_CACHE = `${VERSION}-assets`;
 
