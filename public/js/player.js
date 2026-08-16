@@ -577,10 +577,18 @@
     if (loadBtn) loadBtn.disabled = false;
     kickEmulator();
     firstFrameTimer = setTimeout(watchFirstFrame, 250);
-    // Pequeno atraso: dá tempo do canvas ganhar as dimensões reais (o
-    // primeiro frame de verdade), em vez de capturar um canvas 0x0/em
-    // branco no exato instante do evento de start.
-    setTimeout(startClipRecording, 800);
+    // Gravação de clipe é SÓ pro admin testando (ver server.js/CFG.isAdmin)
+    // — regressão real de performance no Android com jogador comum
+    // (2026-08-17): captureStream()/MediaRecorder correndo em paralelo ao
+    // emulador no mesmo aparelho que já tinha histórico de crash por
+    // pressão de memória. Pra qualquer outra sessão, startClipRecording
+    // nunca é chamada — nem o canvas.captureStream() roda.
+    if (CFG.isAdmin) {
+      // Pequeno atraso: dá tempo do canvas ganhar as dimensões reais (o
+      // primeiro frame de verdade), em vez de capturar um canvas 0x0/em
+      // branco no exato instante do evento de start.
+      setTimeout(startClipRecording, 800);
+    }
   };
 
   // De propósito SEM window.EJS_onSaveState / window.EJS_onLoadState.

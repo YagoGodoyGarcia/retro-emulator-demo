@@ -961,6 +961,13 @@ app.get("/play/:keyId", requireAccess, async (req, res) => {
     // do console se não tiver, ou se apontar pra uma chave que não existe.
     gamepad: VIRTUAL_GAMEPAD[cfg.gamepad] || VIRTUAL_GAMEPAD[cfg.core] || null,
     skipIntro: cfg.skipIntro !== false,
+    // Gravação de clipe (canvas.captureStream + MediaRecorder) só ativa pro
+    // admin testando — teve regressão real de performance no Android com
+    // jogador comum (2026-08-17) e nenhum usuário deveria ver indicador de
+    // gravação nenhum. Ver player.js: sem isAdmin, startClipRecording()
+    // nunca é chamada, então captureStream() nunca roda pra ninguém além
+    // do admin.
+    isAdmin: isAdmin,
   };
 
   res.send(`<!DOCTYPE html>
@@ -1006,12 +1013,14 @@ app.get("/play/:keyId", requireAccess, async (req, res) => {
       <svg viewBox="0 0 576 512" fill="currentColor"><path d="M572.694 292.093L500.27 416.248A63.997 63.997 0 0 1 444.989 448H45.025c-18.523 0-30.064-20.093-20.731-36.093l72.424-124.155A64 64 0 0 1 152 256h399.964c18.523 0 30.064 20.093 20.73 36.093zM152 224h328v-48c0-26.51-21.49-48-48-48H272l-64-64H48C21.49 64 0 85.49 0 112v278.046l69.077-118.418C86.214 242.25 117.989 224 152 224z"/></svg>
       <span>Carregar</span>
     </button>
-    <button type="button" id="quick-clip" class="quick-action-btn" aria-label="Baixar clipe da partida" disabled>
+    ${isAdmin
+      ? `<button type="button" id="quick-clip" class="quick-action-btn" aria-label="Baixar clipe da partida" disabled>
       <svg viewBox="0 0 576 512" fill="currentColor"><path d="M0 128C0 92.7 28.7 64 64 64H320c35.3 0 64 28.7 64 64V384c0 35.3-28.7 64-64 64H64c-35.3 0-64-28.7-64-64V128zm633 0.6c9.6 5.6 15.5 15.9 15.5 27V356.4c0 11.1-5.9 21.4-15.5 27c-9.6 5.6-21.4 5.5-31-0.4L448 322.4V189.6l154-59.4C606.6 123.9 618.4 123.4 628 129c0.3 0.2 0.7 0.4 1 0.6z"/></svg>
       <span>Clipe</span>
-    </button>
+    </button>`
+      : ""}
   </div>
-  <div id="clip-indicator" class="clip-indicator" hidden>🔴 Gravando clipe</div>
+  ${isAdmin ? '<div id="clip-indicator" class="clip-indicator" hidden>🔴 Gravando clipe</div>' : ""}
 
   <div id="save-toast" class="save-toast" hidden></div>
 
