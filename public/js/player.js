@@ -434,20 +434,31 @@
   // ------------------------------------------------------------------
 
   var START_BUTTON = 3; // índice do START no RetroArch
+  var A_BUTTON = 1; // índice do A no controle Mega Drive
 
-  function tapStart() {
+  function tapButton(button) {
     try {
       var emu = window.EJS_emulator;
       if (!emu || !emu.gameManager) return;
-      emu.gameManager.simulateInput(0, START_BUTTON, 1);
+      emu.gameManager.simulateInput(0, button, 1);
       setTimeout(function () {
-        try { emu.gameManager.simulateInput(0, START_BUTTON, 0); } catch (e) {}
+        try { emu.gameManager.simulateInput(0, button, 0); } catch (e) {}
       }, 90);
     } catch (e) {}
   }
 
+  function tapStart() { tapButton(START_BUTTON); }
+
   function skipIntro() {
     if (CFG.skipIntro === false) return;
+    if (CFG.core === "segaMD") {
+      // No Mega Drive, Sonic 2 passa por duas telas: START abre o menu e A
+      // confirma 1 PLAYER. Sem a segunda etapa o usuário vê o logo animado,
+      // mas ainda não está dentro da fase.
+      setTimeout(tapStart, 1400);
+      setTimeout(function () { tapButton(A_BUTTON); }, 2800);
+      return;
+    }
     var delays = [1400, 2300, 3200, 4100];
     delays.forEach(function (ms) { setTimeout(tapStart, ms); });
   }

@@ -28,7 +28,7 @@ const PORT = process.env.PORT || 3000;
 
 // CDN pública do EmulatorJS. Pode ser trocada via env sem mexer em código.
 const EJS_CDN_URL = process.env.EMULATORJS_CDN_URL || "https://cdn.emulatorjs.org/4.2.3/data/";
-const ASSET_VERSION = process.env.ASSET_VERSION || "20260816-boot-manual-v3";
+const ASSET_VERSION = process.env.ASSET_VERSION || "20260816-sonic-fix-v1";
 
 // cover pode ser um nome de arquivo local ("jogo.png", vira /covers/jogo.png)
 // ou uma URL completa (Vercel Blob, upload do admin em produção) — essa é
@@ -287,6 +287,22 @@ app.get("/c/:id", loginLinkLimiter, async (req, res) => {
 
   clients.startSession(res, client.id);
   clients.touch(clientsStore, client.id).catch(() => {});
+
+  // Links /c/:id são compartilhados para uma pessoa jogar, não para ela
+  // descobrir manualmente qual cartucho foi atribuído. Quando a conta tem
+  // exatamente um jogo publicado, leva direto ao player; contas com vários
+  // jogos continuam na biblioteca para escolher entre eles.
+  try {
+    const ownedGameIds = await ownership.getClientGames(client.id);
+    if (ownedGameIds.length === 1) {
+      const publishedGames = await library.getPublishedGames();
+      const ownedGame = publishedGames.find((game) => game.gameId === ownedGameIds[0]);
+      if (ownedGame) return res.redirect(302, `/play/${encodeURIComponent(ownedGame.gameId)}`);
+    }
+  } catch (err) {
+    console.warn("[clients] não foi possível resolver o jogo exclusivo:", err.message);
+  }
+
   res.redirect(302, "/");
 });
 
