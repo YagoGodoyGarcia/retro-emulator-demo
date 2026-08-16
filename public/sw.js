@@ -8,7 +8,8 @@
 // pro navegador — resposta opaca de terceiro em cache dá mais dor de cabeça
 // (tamanho, revalidação) do que ganho, e o cache HTTP normal já cobre isso.
 
-const VERSION = "myde-v6";
+const VERSION = "myde-v10";
+const ASSET_VERSION = "20260816-boot-manual-v3";
 const SHELL_CACHE = `${VERSION}-shell`;
 const ASSET_CACHE = `${VERSION}-assets`;
 
@@ -17,9 +18,9 @@ const ASSET_CACHE = `${VERSION}-assets`;
 // gravada como a home. O handler de navegação já guarda a home de verdade
 // depois de uma visita bem-sucedida.
 const SHELL = [
-  "/css/style.css",
-  "/js/library.js",
-  "/js/player.js",
+  `/css/style.css?v=${ASSET_VERSION}`,
+  `/js/library.js?v=${ASSET_VERSION}`,
+  `/js/player.js?v=${ASSET_VERSION}`,
   "/manifest.webmanifest",
   "/icons/icon-192.png",
 ];

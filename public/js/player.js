@@ -9,10 +9,119 @@
 
   var loadStartedAt = performance.now();
   var badge = document.getElementById("load-badge");
+  var retryBox = document.getElementById("boot-retry");
+  var retryMessage = document.getElementById("boot-retry-message");
+  var retryButton = document.getElementById("boot-retry-btn");
+  var audioGate = document.getElementById("audio-gate");
+  var audioGateButton = document.getElementById("audio-gate-btn");
+  var gameStarted = false;
+  var emulatorStarted = false;
+  var firstFrameTimer = null;
+  var firstFrameSample = null;
+  var firstFrameSamples = 0;
+  var retryTimer = null;
+  var retryKey = "myde-boot-retry:" + CFG.id;
+  var alreadyRetried = false;
+  try { alreadyRetried = sessionStorage.getItem(retryKey) === "1"; } catch (e) {}
+
   if (badge) {
     badge.hidden = false;
     badge.textContent = "carregando...";
   }
+
+  function showRetry(message) {
+    if (gameStarted || !retryBox) return;
+    if (retryMessage) retryMessage.textContent = message;
+    retryBox.hidden = false;
+  }
+
+  function retryBoot() {
+    if (gameStarted) return;
+    try { sessionStorage.setItem(retryKey, "1"); } catch (e) {}
+    var url = new URL(window.location.href);
+    url.searchParams.set("boot-retry", String(Date.now()));
+    window.location.replace(url.toString());
+  }
+
+  function kickEmulator() {
+    var emu = window.EJS_emulator;
+    if (!emu) return;
+    try {
+      if (emu.Module && typeof emu.Module.resumeMainLoop === "function") emu.Module.resumeMainLoop();
+      if (emu.elements && emu.elements.parent && typeof emu.elements.parent.focus === "function") emu.elements.parent.focus();
+      if (typeof emu.handleResize === "function") emu.handleResize();
+    } catch (e) {}
+    resumeAudio();
+  }
+
+  function frameSignature() {
+    var canvas = document.querySelector("#game canvas");
+    if (!canvas || !canvas.width || !canvas.height) return null;
+    try {
+      // WebGL normalmente não preserva o backbuffer após apresentar o frame,
+      // então `readPixels()` pode retornar zero mesmo com a imagem visível.
+      // `toDataURL()` é usado só durante o boot e mede o canvas composto real.
+      var data = canvas.toDataURL("image/png");
+      // Um canvas recém-criado pode gerar um PNG preto pequeno antes do
+      // primeiro frame. As telas dos jogos deste catálogo são substancialmente
+      // maiores; esse limite evita anunciar `pronto` durante essa transição.
+      return data.length > 10000 ? String(data.length) : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function markReady() {
+    if (gameStarted) return;
+    gameStarted = true;
+    hideAudioGate();
+    if (retryTimer) {
+      clearTimeout(retryTimer);
+      retryTimer = null;
+    }
+    if (firstFrameTimer) {
+      clearTimeout(firstFrameTimer);
+      firstFrameTimer = null;
+    }
+    try { sessionStorage.removeItem(retryKey); } catch (e) {}
+    var seconds = ((performance.now() - loadStartedAt) / 1000).toFixed(1);
+    if (badge) {
+      badge.textContent = "pronto em " + seconds + "s";
+      setTimeout(function () { badge.classList.add("load-badge--fade"); }, 2200);
+    }
+    skipIntro();
+    // 12s de folga sobre os até 10s que o checkStarted() do EmulatorJS ainda
+    // pode ficar de olho no popup depois do jogo já ter "começado".
+    setTimeout(silenceStartupWorkarounds, 12000);
+  }
+
+  function watchFirstFrame() {
+    if (!emulatorStarted || gameStarted) return;
+    kickEmulator();
+    if (audioIsSuspended() || (navigator.maxTouchPoints > 0 && !gameStarted)) showAudioGate();
+    var current = frameSignature();
+    if (current) {
+      markReady();
+      return;
+    }
+    firstFrameSamples++;
+    if (firstFrameSamples < 12) firstFrameTimer = setTimeout(watchFirstFrame, 500);
+  }
+
+  if (retryButton) retryButton.addEventListener("click", retryBoot);
+
+  // Se o EmulatorJS não emitir `start`, uma única recarga com query própria
+  // recupera o caso de cache/descompressão que só funcionava após F5. Em rede
+  // lenta damos mais tempo; depois da tentativa automática mostramos o botão,
+  // sem entrar em loop infinito.
+  var connection = navigator.connection;
+  var slowConnection = connection && (connection.saveData || /(^|-)2g$/.test(connection.effectiveType || ""));
+  var retryAfterMs = slowConnection ? 60000 : 30000;
+  retryTimer = setTimeout(function () {
+    if (gameStarted || document.querySelector(".ejs_start_button")) return;
+    if (!alreadyRetried) retryBoot();
+    else showRetry("O jogo não iniciou. Toque para tentar novamente.");
+  }, retryAfterMs);
 
   // ------------------------------------------------------------------
   // config do EmulatorJS
@@ -113,13 +222,12 @@
     "save-state-location": "browser",
   };
 
-  // Sem tela de espera própria (Fase 10): o jogo sobe sozinho assim que o
-  // core e a ROM terminam de baixar — EJS_startOnLoaded faz o EmulatorJS
-  // clicar no próprio botão de start internamente, sem esperar ninguém tocar
-  // em nada aqui. Tela cheia/paisagem exigem um gesto de verdade (ver "o
-  // toque que destrava tudo" mais abaixo) — sem gate, isso passa a acontecer
-  // no primeiro toque real de JOGO (d-pad, botão), não antes.
-  window.EJS_startOnLoaded = true;
+  // O navegador pode criar o AudioContext somente depois que a ROM e o core
+  // terminam de baixar. O auto-start acontece fora da pilha de um gesto e pode
+  // deixar o primeiro frame preso em canvas cinza até um F5/toque posterior.
+  // Por isso o botão nativo permanece visível e inicia dentro do gesto real do
+  // usuário.
+  window.EJS_startOnLoaded = false;
 
   // ------------------------------------------------------------------
   // matar o "Click to resume Emulator"
@@ -183,6 +291,44 @@
     } catch (e) {}
   }
 
+  function audioIsSuspended() {
+    var states = audioContexts.map(function (ctx) { return ctx && ctx.state; });
+    try {
+      var emu = window.EJS_emulator;
+      var al = emu && emu.Module && emu.Module.AL;
+      var current = al && al.currentCtx;
+      if (current && current.audioCtx) states.push(current.audioCtx.state);
+      Object.keys((current && current.sources) || {}).forEach(function (key) {
+        var ctx = current.sources[key] && current.sources[key].gain && current.sources[key].gain.context;
+        if (ctx) states.push(ctx.state);
+      });
+    } catch (e) {}
+    return states.some(function (state) { return state === "suspended"; });
+  }
+
+  function hideAudioGate() {
+    if (audioGate) audioGate.hidden = true;
+  }
+
+  function tryUnlockAudio() {
+    resumeAudio();
+    kickEmulator();
+    setTimeout(function () {
+      if (!audioIsSuspended()) hideAudioGate();
+    }, 80);
+  }
+
+  function showAudioGate() {
+    if (!audioGate || gameStarted || !emulatorStarted) return;
+    audioGate.hidden = false;
+    if (audioGateButton && document.activeElement !== audioGateButton) audioGateButton.focus();
+  }
+
+  if (audioGateButton) {
+    audioGateButton.addEventListener("click", tryUnlockAudio);
+    audioGateButton.addEventListener("pointerdown", tryUnlockAudio, { passive: true });
+  }
+
   // Esses dois (listener de toque + observer) só têm razão de existir ANTES
   // do jogo começar de verdade — é a única janela em que o popup pode
   // aparecer. Manter rodando pra sempre custa trabalho de JS em cima de
@@ -201,11 +347,15 @@
   // popup numa hora sem timing ruim). Por isso o desligamento espera bem
   // mais que esses 10s antes de agir.
   var startupEvents = ["pointerdown", "touchstart", "touchend", "mousedown", "keydown"];
+  function handleStartupGesture() {
+    tryUnlockAudio();
+  }
   startupEvents.forEach(function (evt) {
-    document.addEventListener(evt, resumeAudio, { capture: true, passive: true });
+    document.addEventListener(evt, handleStartupGesture, { capture: true, passive: true });
   });
 
-  var startupObserver = null;
+  var startupPollTimer = null;
+  var RESUME_TEXT = /resume Emulator|reprendre|reanudar|继续|다시 시작|відновити|devam/i;
 
   // Troca o checkStarted() do EmulatorJS por um que religa o áudio sozinho em
   // vez de abrir popup. "ready" dispara logo depois que o botão de start é
@@ -222,27 +372,29 @@
     };
   };
 
-  // Cinto e suspensório: se uma versão futura do EmulatorJS abrir o popup por
-  // outro caminho, ele some assim que aparecer (e o áudio volta no toque).
-  // Varre o container inteiro a cada mutação em vez de olhar só o nó
-  // adicionado: o createPopup() insere a caixa VAZIA e só depois enche de
-  // conteúdo, então no instante da inserção o texto ainda não está lá.
-  if (window.MutationObserver) {
-    var RESUME_TEXT = /resume Emulator|reprendre|reanudar|继续|다시 시작|відновити|devam/i;
-    startupObserver = new MutationObserver(function () {
-      var popups = document.querySelectorAll(".ejs_popup_container");
-      for (var i = 0; i < popups.length; i++) {
-        if (popups[i].style.display === "none") continue;
-        if (!RESUME_TEXT.test(popups[i].textContent)) continue;
-        popups[i].style.display = "none";
-        resumeAudio();
-      }
-    });
-    startupObserver.observe(document.body, { childList: true, subtree: true, characterData: true });
+  // Cinto e suspensório: versões do EmulatorJS podem abrir o popup de áudio
+  // depois do evento `ready`. Em vez de observar cada mutação do document.body
+  // (caro durante a montagem do menu e do core), consulta somente os popups em
+  // intervalos curtos durante a janela de boot. Isso também evita a corrida em
+  // que a caixa é criada vazia e recebe o texto logo depois.
+  function dismissResumePopup() {
+    var popups = document.querySelectorAll(".ejs_popup_container");
+    for (var i = 0; i < popups.length; i++) {
+      if (popups[i].style.display === "none") continue;
+      if (!RESUME_TEXT.test(popups[i].textContent)) continue;
+      popups[i].style.display = "none";
+      resumeAudio();
+    }
   }
 
-  // Desliga o listener por-toque e o observer de DOM inteiro assim que o jogo
-  // está de fato rodando, e troca por um único listener de visibilitychange
+  (function pollResumePopup() {
+    if (workaroundsSilenced) return;
+    dismissResumePopup();
+    startupPollTimer = setTimeout(pollResumePopup, 250);
+  })();
+
+  // Desliga o listener por-toque e o polling de popup assim que o jogo está
+  // de fato rodando, e troca por um único listener de visibilitychange
   // — o áudio só volta a suspender sozinho quando a aba sai e volta de
   // background, não a cada input do jogador.
   var workaroundsSilenced = false;
@@ -250,11 +402,11 @@
     if (workaroundsSilenced) return; // trava — ver o timeout de segurança logo abaixo, que também chama isto
     workaroundsSilenced = true;
     startupEvents.forEach(function (evt) {
-      document.removeEventListener(evt, resumeAudio, { capture: true });
+      document.removeEventListener(evt, handleStartupGesture, { capture: true });
     });
-    if (startupObserver) {
-      startupObserver.disconnect();
-      startupObserver = null;
+    if (startupPollTimer) {
+      clearTimeout(startupPollTimer);
+      startupPollTimer = null;
     }
     document.addEventListener("visibilitychange", function () {
       if (document.visibilityState === "visible") resumeAudio();
@@ -263,10 +415,8 @@
 
   // Trava de segurança independente do EJS_onGameStart: se por algum motivo
   // o jogo nunca disparar "start" (core que falha ao subir, ROM que trava
-  // antes do primeiro frame etc.), os listeners de toque + o MutationObserver
-  // do document.body inteiro (childList/subtree/characterData — dispara a
-  // cada toque no controle virtual, que troca classe CSS a cada
-  // pressionar/soltar) continuariam rodando pra sempre, sem o desligamento
+  // antes do primeiro frame etc.), os listeners de toque + o polling de popup
+  // continuariam rodando pra sempre, sem o desligamento
   // normal de 12s depois do início. 20s aqui é só o teto — em uso normal
   // quem desliga primeiro é sempre o EJS_onGameStart, isto é rede de
   // segurança, não o caminho esperado.
@@ -307,16 +457,10 @@
   // ------------------------------------------------------------------
 
   window.EJS_onGameStart = function () {
-    var seconds = ((performance.now() - loadStartedAt) / 1000).toFixed(1);
-    if (badge) {
-      badge.textContent = "pronto em " + seconds + "s";
-      setTimeout(function () { badge.classList.add("load-badge--fade"); }, 2200);
-    }
-    skipIntro();
-    // 12s de folga sobre os até 10s que o checkStarted() do EmulatorJS ainda
-    // pode ficar de olho no popup depois do jogo já ter "começado" — ver o
-    // comentário longo lá em cima de startupEvents pra o bug que isso corrigiu.
-    setTimeout(silenceStartupWorkarounds, 12000);
+    emulatorStarted = true;
+    if (badge) badge.textContent = "iniciando...";
+    kickEmulator();
+    firstFrameTimer = setTimeout(watchFirstFrame, 250);
   };
 
   // De propósito SEM window.EJS_onSaveState / window.EJS_onLoadState.

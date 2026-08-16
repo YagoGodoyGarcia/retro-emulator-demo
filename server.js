@@ -27,7 +27,8 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // CDN pública do EmulatorJS. Pode ser trocada via env sem mexer em código.
-const EJS_CDN_URL = process.env.EMULATORJS_CDN_URL || "https://cdn.emulatorjs.org/stable/data/";
+const EJS_CDN_URL = process.env.EMULATORJS_CDN_URL || "https://cdn.emulatorjs.org/4.2.3/data/";
+const ASSET_VERSION = process.env.ASSET_VERSION || "20260816-boot-manual-v3";
 
 // cover pode ser um nome de arquivo local ("jogo.png", vira /covers/jogo.png)
 // ou uma URL completa (Vercel Blob, upload do admin em produção) — essa é
@@ -660,12 +661,23 @@ app.get("/play/:keyId", requireAccess, async (req, res) => {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <title>${escapeHtml(cfg.title)} · MYDE</title>
-  <link rel="stylesheet" href="/css/style.css" />
+  <link rel="stylesheet" href="/css/style.css?v=${ASSET_VERSION}" />
   <link rel="preconnect" href="https://cdn.emulatorjs.org" crossorigin />
   <link rel="preload" as="fetch" href="${escapeHtml(cfg.gameUrl)}" crossorigin />${PWA_HEAD}
 </head>
 <body class="player-body">
   <div id="load-badge" class="load-badge" hidden></div>
+  <div id="boot-retry" class="boot-retry" hidden role="alert" aria-live="polite">
+    <p id="boot-retry-message">O jogo demorou mais que o esperado.</p>
+    <button type="button" id="boot-retry-btn">Tentar iniciar</button>
+  </div>
+  <div id="audio-gate" class="audio-gate" hidden role="dialog" aria-modal="true" aria-labelledby="audio-gate-title">
+    <div class="audio-gate-card">
+      <p id="audio-gate-title">Toque para começar</p>
+      <p class="audio-gate-copy">O navegador precisa de uma interação para liberar o áudio do jogo.</p>
+      <button type="button" id="audio-gate-btn">Iniciar jogo</button>
+    </div>
+  </div>
   <a href="/" class="back-btn" aria-label="Voltar pra biblioteca">&larr;</a>
 
   <div class="quick-actions">
@@ -686,7 +698,7 @@ app.get("/play/:keyId", requireAccess, async (req, res) => {
   <div id="rotate-hint" class="rotate-hint">🔄 Gire o celular pra jogar em paisagem</div>
 
   <script>window.__PLAY__ = ${jsonForScript(playConfig)};</script>
-  <script src="/js/player.js"></script>
+  <script src="/js/player.js?v=${ASSET_VERSION}"></script>
   <script src="${EJS_CDN_URL}loader.js"></script>
 </body>
 </html>`);

@@ -314,31 +314,53 @@
 
   var prefetched = {};
   var prefetchTimer = null;
+  var prefetchControllers = [];
 
   function connectionIsCheap() {
     var c = navigator.connection;
     if (!c) return true;
     if (c.saveData) return false;
-    return !/(^|-)2g$/.test(c.effectiveType || "");
+    if (/(^|-)2g$/.test(c.effectiveType || "")) return false;
+    if (typeof navigator.deviceMemory === "number" && navigator.deviceMemory <= 2) return false;
+    return true;
+  }
+
+  function isTouchDevice() {
+    return navigator.maxTouchPoints > 0 || (window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
   }
 
   function prefetch(url) {
     if (!url || prefetched[url] || !connectionIsCheap()) return;
     prefetched[url] = true;
-    fetch(url, { mode: "cors", credentials: "omit" }).catch(function () {});
+    var controller = window.AbortController ? new AbortController() : null;
+    if (controller) prefetchControllers.push(controller);
+    var options = { mode: "cors", credentials: "omit" };
+    if (controller) options.signal = controller.signal;
+    fetch(url, options).catch(function () {});
   }
 
   function schedulePrefetch(tile) {
     clearTimeout(prefetchTimer);
     prefetchTimer = setTimeout(function () {
       var run = function () {
+        if (!tile || !document.contains(tile)) return;
+        // No celular, a ROM pequena já ajuda; o core comprimido é pesado e
+        // concorre com a navegação/boot do jogo, então fica para a própria tela
+        // do player. Desktop continua aquecendo ROM e core em conexões boas.
         prefetch(tile.dataset.rom);
-        prefetch(tile.dataset.coreUrl);
+        if (!isTouchDevice()) prefetch(tile.dataset.coreUrl);
       };
       if (window.requestIdleCallback) window.requestIdleCallback(run, { timeout: 2500 });
       else run();
-    }, 550);
+    }, isTouchDevice() ? 900 : 550);
   }
+
+  window.addEventListener("pagehide", function () {
+    prefetchControllers.forEach(function (controller) {
+      try { controller.abort(); } catch (e) {}
+    });
+    prefetchControllers = [];
+  }, { once: true });
 
   // -------------------------------------------------------------------
   // HUD
