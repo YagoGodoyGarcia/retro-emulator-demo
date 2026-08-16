@@ -836,7 +836,7 @@
             fetch("/api/access-requests", {
               method: "POST",
               credentials: "same-origin",
-              headers: { "Content-Type": "application/json" },
+              headers: { "Content-Type": "application/json", "X-CSRF-Token": window.__CSRF__ || "" },
               body: JSON.stringify({ gameId: g.gameId }),
             })
               .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
@@ -1100,7 +1100,11 @@
   // Sinal de vida: mantém o link marcado como "em uso" no painel de admin.
   if (window.__SESSION__) {
     var beat = function () {
-      fetch("/api/heartbeat", { method: "POST", credentials: "same-origin" }).catch(function () {});
+      fetch("/api/heartbeat", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "X-CSRF-Token": window.__CSRF__ || "" },
+      }).catch(function () {});
     };
     beat();
     setInterval(beat, 60000);

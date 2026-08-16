@@ -1388,6 +1388,20 @@ button {
   opacity: 0.3;
 }
 
+.clip-indicator {
+  position: absolute;
+  bottom: max(10px, env(safe-area-inset-bottom));
+  left: 10px;
+  z-index: 20;
+  background: rgba(20, 20, 28, 0.75);
+  color: #ff8a8a;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 5px 10px;
+  border-radius: 999px;
+  pointer-events: none;
+}
+
 .boot-retry {
   position: absolute;
   left: 50%;

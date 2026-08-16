@@ -26,26 +26,57 @@ Abre em `http://localhost:3000`.
 
 | Rota | Descrição |
 |---|---|
-| `GET /` | Carteira/vitrine de jogos da sessão atual |
-| `GET /play/:id` | Player em tela cheia; admin pode testar qualquer jogo publicado |
+| `GET /` | Carteira/vitrine de jogos da sessão atual — só mostra o que é dela |
+| `GET /play/:id` | Player em tela cheia; bloqueia com tela de "pedir acesso" se o jogo não for da carteira |
 | `GET /c/:id` | Link público do jogador; primeiro acesso abre o cadastro por nome |
 | `POST /c/:id/claim` | Cadastra nome/e-mail opcional e atribui o jogo do link |
 | `GET /t/:token` | Resgate do link de convite tradicional (vincula ao aparelho) |
 | `GET /admin` | Painel de administração (senha obrigatória) |
 | `GET /admin/api/access-report` | Relatório de cadastros, acessos e partidas |
 | `GET /api/keychains` | Catálogo JSON filtrado pela carteira atual |
+| `GET /api/catalog/requestable` | Jogos que a carteira atual ainda NÃO tem — alimenta a aba "Pedir jogo" |
+| `POST /api/access-requests` | Cria um pedido de acesso pendente pra um jogo que não é da carteira |
+| `GET /admin/api/access-requests` | Fila de pedidos pendentes, pro admin decidir |
+| `POST /admin/api/access-requests/:id/approve` \| `/deny` | Aprova (atribui o jogo) ou nega um pedido |
+
+### Fila de solicitação de acesso
+
+Um jogo sem dono só é visível/jogável por quem não tem carteira (fluxo antigo,
+aberto). Uma carteira logada só vê e joga o que já é dela — jogo de outro
+dono, ou sem dono nenhum, aparece bloqueado com um botão **Pedir acesso** em
+vez de simplesmente recusar. Isso cria um pedido pendente (`lib/access-requests.js`)
+que aparece no painel `/admin` numa fila própria, com **Aprovar** (atribui o
+jogo na hora) ou **Negar**. Aprovar um pedido fecha automaticamente qualquer
+outro pedido pendente pro mesmo jogo, e recusa aprovar se o jogo já tiver
+ganhado outro dono nesse meio-tempo — evita deixar dois pedidos concorrentes
+resolvidos de forma inconsistente.
 
 ## Estrutura
 
 - `server.js` — rotas e HTML
-- `lib/access.js` — cookies, vínculo de aparelho, sessão
-- `lib/store.js` — armazenamento dos links de acesso
-- `lib/library-store.js` — catálogo dos jogos adicionados pelo admin
-- `lib/blob.js` — armazenamento do arquivo de ROM/capa
-- `lib/game-entry.js` — validação de upload
-- `lib/redis.js` — cliente Redis compartilhado
+- `lib/access.js` — cookies, vínculo de aparelho, sessão do convite tradicional (`/t/:token`)
+- `lib/access-log.js` — registro de visita/login/cadastro/partida por carteira
+- `lib/access-requests.js` — fila de pedidos de acesso (criar, aprovar, negar)
+- `lib/blob-upload-policy.js` — política de pathname/tamanho pro upload direto ao Blob (importação em lote)
+- `lib/blob.js` — armazenamento do arquivo de ROM/capa (Vercel Blob ou disco local)
+- `lib/clients-store.js` — armazenamento das carteiras (Redis com fallback em memória)
+- `lib/clients.js` — carteira sem senha: criação, cadastro (claim), sessão
+- `lib/cookie-signing.js` — assinatura HMAC compartilhada por todos os cookies
+- `lib/csrf.js` — token CSRF (double-submit cookie) usado nas mutações do admin e da carteira
+- `lib/filename-normalizer.js` — normaliza nome de arquivo de ROM pra sugestão de título
+- `lib/game-entry.js` — validação de upload/edição de jogo
 - `lib/gamepad.js` — layout do controle virtual por core
-- `public/js/library.js` — lógica da vitrine (busca, sugestão, carrossel)
+- `lib/library-scan.js` — cruza catálogo x Blob pra achar ROM/capa órfã ou quebrada
+- `lib/library-service.js` — catálogo unificado (estático + dinâmico), normalização de jogo
+- `lib/library-store.js` — catálogo dos jogos adicionados pelo admin
+- `lib/ownership.js` — posse de jogo por carteira (um jogo pode ter várias carteiras donas)
+- `lib/platforms.js` — registro central de consoles suportados (extensão, core, limites)
+- `lib/play-stats.js` — contagem de partidas por jogo, pra ordenar a vitrine por popularidade
+- `lib/rate-limit.js` — limitador por IP (login, resgate de link, pedido de acesso)
+- `lib/redis.js` — cliente Redis compartilhado
+- `lib/rom-hash.js` — hash SHA-256 de ROM, pra detectar duplicata na importação em lote
+- `lib/store.js` — armazenamento dos links de convite tradicionais (`/t/:token`)
+- `public/js/library.js` — lógica da vitrine (busca, sugestão, carrossel, aba "Pedir jogo")
 - `public/js/player.js` — lógica do player
 - `public/js/admin.js` — painel admin
 - `public/sw.js` — service worker (cache/PWA)
