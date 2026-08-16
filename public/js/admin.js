@@ -214,7 +214,8 @@
             '<div class="token' + (c.revoked ? " token--revoked" : "") + '">' +
             '<img class="token-qr" src="' + c.qr + '" alt="QR do login" />' +
             '<div class="token-main">' +
-            '<div class="token-label">' + escapeHtml(c.label || "Sem nome") + (c.email ? " · " + escapeHtml(c.email) : "") + "</div>" +
+            '<div class="token-label">' + escapeHtml(c.label || "Sem nome") + (c.email ? " · " + escapeHtml(c.email) : "") +
+            (c.source === "form" ? ' <span class="pill pill--bound" style="font-size:0.62rem">via formulário</span>' : "") + "</div>" +
             '<div class="token-url">' + escapeHtml(c.url) + "</div>" +
             '<div class="token-status">' +
             (c.revoked ? '<span class="pill pill--dead">revogado</span>' : c.claimedAt ? '<span class="pill pill--free">cadastrado</span>' : '<span class="pill">aguardando cadastro</span>') +

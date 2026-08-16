@@ -130,6 +130,7 @@ function systemPage(res, status, { icon, title, body }) {
 // `pending` já vem calculado (existe pedido em aberto pra esse par
 // cliente+jogo?) pra não deixar pedir de novo à toa.
 function requestAccessPage(res, cfg, pending) {
+  const csrfToken = csrf.setToken(res);
   res.status(403).send(`<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -161,7 +162,7 @@ function requestAccessPage(res, cfg, pending) {
         fetch("/api/access-requests", {
           method: "POST",
           credentials: "same-origin",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "X-CSRF-Token": ${jsonForScript(csrfToken)} },
           body: JSON.stringify({ gameId: ${jsonForScript(cfg.gameId)} }),
         })
           .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
@@ -189,6 +190,7 @@ function requestAccessPage(res, cfg, pending) {
 }
 
 function clientOnboardingPage(res, client, game) {
+  const csrfToken = csrf.setToken(res);
   const title = game ? escapeHtml(game.title) : "seu jogo";
   res.status(200).send(`<!DOCTYPE html>
 <html lang="pt-BR">
@@ -225,7 +227,7 @@ function clientOnboardingPage(res, client, game) {
         fetch(${jsonForScript(`/c/${client.id}/claim`)}, {
           method: "POST",
           credentials: "same-origin",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "X-CSRF-Token": ${jsonForScript(csrfToken)} },
           body: JSON.stringify({
             name: document.getElementById("claim-name").value,
             email: document.getElementById("claim-email").value,
@@ -274,6 +276,17 @@ const adminLoginLimiter = limiter("admin-login", {
 const accessRequestLimiter = limiter("access-request", {
   windowMs: 60 * 1000,
   max: 10,
+});
+
+const joinFormLimiter = limiter("join-form", {
+  windowMs: 10 * 60 * 1000,
+  max: 10,
+  onLimited: (req, res) =>
+    systemPage(res, 429, {
+      icon: "⏳",
+      title: "Muitas tentativas",
+      body: "<p>Espera alguns minutos e tenta de novo.</p>",
+    }),
 });
 
 // ---------------------------------------------------------------------------
@@ -381,7 +394,7 @@ app.get("/c/:id", loginLinkLimiter, async (req, res) => {
   res.redirect(302, "/");
 });
 
-app.post("/c/:id/claim", loginLinkLimiter, async (req, res) => {
+app.post("/c/:id/claim", loginLinkLimiter, requireCsrf, async (req, res) => {
   const client = await clientsStore.get(req.params.id).catch(() => null);
   if (!client || client.revoked) return res.status(404).json({ error: "link indisponível" });
   const result = clients.claim(client, req.body && req.body.name, req.body && req.body.email);
@@ -416,6 +429,120 @@ app.post("/c/:id/claim", loginLinkLimiter, async (req, res) => {
     userAgent: req.get("user-agent"),
   }).catch(() => {});
   res.json({ ok: true, redirect: "/" });
+});
+
+// ---------------------------------------------------------------------------
+// /juntar — funil público (ex.: link fixado num clipe do TikTok). Reaproveita
+// o MESMO mecanismo de carteira do /c/:id: quem preenche o formulário gera
+// uma conta já "reivindicada" (nome preenchido = mesmo efeito de já ter
+// clicado em "Abrir minha carteira"), exatamente como o admin faz hoje ao
+// criar um link com nome. Não manda nada automaticamente por e-mail/WhatsApp
+// — isso seria integração externa nova — só fica visível pro admin no
+// painel (com a tag "via formulário") pra ele mandar o link na mão.
+// ---------------------------------------------------------------------------
+
+function joinFormPage(res, csrfToken, gameId, gameTitle, error) {
+  res.status(error ? 400 : 200).send(`<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Entrar no MYDE</title>
+  <link rel="stylesheet" href="/css/style.css" />${PWA_HEAD}
+</head>
+<body class="system-body">
+  <main class="system-card onboarding-card">
+    <div class="system-mark">MYDE</div>
+    <div class="system-icon">🎮</div>
+    <h1>Quer jogar ${gameTitle ? escapeHtml(gameTitle) : "no MYDE"}?</h1>
+    <p>Deixa seu nome que a gente libera seu acesso exclusivo em breve.</p>
+    <form id="join-form" class="onboarding-form">
+      <label>Seu nome<input class="field" id="join-name" name="name" autocomplete="name" maxlength="60" required placeholder="Como podemos chamar você?" /></label>
+      <label>E-mail <span>(opcional)</span><input class="field" id="join-email" name="email" type="email" autocomplete="email" inputmode="email" maxlength="120" placeholder="Pra te avisar quando liberar" /></label>
+      <button class="btn" type="submit" id="join-btn">Quero jogar</button>
+      <p class="form-error" id="join-error" ${error ? "" : "hidden"}>${error ? escapeHtml(error) : ""}</p>
+    </form>
+    <p class="panel-note" id="join-done" hidden>Recebido! Você vai receber seu link de acesso exclusivo em breve.</p>
+  </main>
+  <script>
+    (function () {
+      var form = document.getElementById("join-form");
+      var btn = document.getElementById("join-btn");
+      var error = document.getElementById("join-error");
+      var done = document.getElementById("join-done");
+      form.addEventListener("submit", function (event) {
+        event.preventDefault();
+        btn.disabled = true;
+        btn.textContent = "Enviando...";
+        error.hidden = true;
+        fetch("/juntar", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json", "X-CSRF-Token": ${jsonForScript(csrfToken)} },
+          body: JSON.stringify({
+            name: document.getElementById("join-name").value,
+            email: document.getElementById("join-email").value,
+            gameId: ${jsonForScript(gameId || "")},
+          }),
+        }).then(function (response) {
+          return response.json().then(function (data) { return { ok: response.ok, data: data }; });
+        }).then(function (result) {
+          if (!result.ok) throw new Error(result.data && result.data.error || "Não foi possível enviar agora.");
+          form.hidden = true;
+          done.hidden = false;
+        }).catch(function (err) {
+          error.textContent = err.message || "Falha de rede. Tente novamente.";
+          error.hidden = false;
+          btn.disabled = false;
+          btn.textContent = "Quero jogar";
+        });
+      });
+    })();
+  </script>
+</body>
+</html>`);
+}
+
+app.get("/juntar", async (req, res) => {
+  const csrfToken = csrf.setToken(res);
+  try {
+    const games = await library.getPublishedGames();
+    const requested = games.find((g) => g.gameId === String(req.query.jogo || ""));
+    const fallback = games.find((g) => g.featured) || games[0] || null;
+    const game = requested || fallback;
+    joinFormPage(res, csrfToken, game && game.gameId, game && game.title);
+  } catch (err) {
+    console.error("[juntar] falha ao montar a página:", err.message);
+    joinFormPage(res, csrfToken, null, null);
+  }
+});
+
+app.post("/juntar", joinFormLimiter, requireCsrf, async (req, res) => {
+  try {
+    const games = await library.getPublishedGames();
+    const requested = games.find((g) => g.gameId === String((req.body && req.body.gameId) || ""));
+    const fallback = games.find((g) => g.featured) || games[0] || null;
+    const game = requested || fallback;
+    if (!game) return res.status(503).json({ error: "nenhum jogo publicado está disponível agora" });
+
+    const client = clients.newClient(req.body && req.body.name, req.body && req.body.email, "form");
+    if (!client.label || client.label.length < 2) {
+      return res.status(400).json({ error: "informe seu nome" });
+    }
+    client.claimGameId = game.gameId;
+    await ownership.addOwner(game.gameId, client.id);
+    await clientsStore.put(client);
+    accessLog.record(client.id, {
+      type: "claim",
+      gameId: game.gameId,
+      path: req.originalUrl,
+      userAgent: req.get("user-agent"),
+    }).catch(() => {});
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[juntar] falha ao cadastrar pelo formulário:", err.message);
+    res.status(503).json({ error: "não foi possível enviar agora; tente novamente" });
+  }
 });
 
 app.get("/sair", (req, res) => {
@@ -468,6 +595,8 @@ async function requireAccess(req, res, next) {
 // ---------------------------------------------------------------------------
 
 app.get("/", requireAccess, async (req, res) => {
+  const csrfToken = csrf.setToken(res);
+  try {
   const client = await clients.currentClient(clientsStore, req).catch(() => null);
   const allGamesUnfiltered = await library.getPublishedGames();
   const ownerLists = await Promise.all(allGamesUnfiltered.map((g) => ownership.getGameOwners(g.gameId)));
@@ -652,6 +781,7 @@ app.get("/", requireAccess, async (req, res) => {
 
   <script>
     window.__SESSION__ = ${req.mydeSession && req.mydeSession.token ? "true" : "false"};
+    window.__CSRF__ = ${jsonForScript(csrfToken)};
     // Ordem central de plataformas (lib/platforms.js) pra agrupar a folha
     // "ver todos os jogos" sem depender da ordem em que os jogos foram
     // cadastrados (seção 30 do briefing).
@@ -661,10 +791,18 @@ app.get("/", requireAccess, async (req, res) => {
   <script src="/js/spatial-nav.js" defer></script>
 </body>
 </html>`);
+  } catch (err) {
+    console.error("[home] falha ao carregar a vitrine:", err.message);
+    systemPage(res, 503, {
+      icon: "⚠️",
+      title: "Não deu pra carregar sua coleção",
+      body: "<p>Tenta de novo em alguns segundos.</p>",
+    });
+  }
 });
 
 // Sinal de vida: marca o link como "em uso agora" no painel de admin.
-app.post("/api/heartbeat", async (req, res) => {
+app.post("/api/heartbeat", requireCsrf, async (req, res) => {
   const tokenId = access.sessionTokenId(req);
   if (!tokenId) return res.json({ ok: false });
   try {
@@ -676,14 +814,19 @@ app.post("/api/heartbeat", async (req, res) => {
 });
 
 app.get("/api/keychains", async (req, res) => {
-  const client = await clients.currentClient(clientsStore, req).catch(() => null);
-  const games = await library.getPublishedGames();
-  const visible = [];
-  for (const g of games) {
-    const owners = await ownership.getGameOwners(g.gameId);
-    if (client ? owners.includes(client.id) : owners.length === 0) visible.push(g);
+  try {
+    const client = await clients.currentClient(clientsStore, req).catch(() => null);
+    const games = await library.getPublishedGames();
+    const visible = [];
+    for (const g of games) {
+      const owners = await ownership.getGameOwners(g.gameId);
+      if (client ? owners.includes(client.id) : owners.length === 0) visible.push(g);
+    }
+    res.json(Object.fromEntries(visible.map((g) => [g.gameId, g])));
+  } catch (err) {
+    console.error("[keychains] falha ao montar o catálogo:", err.message);
+    res.status(503).json({ error: "não foi possível carregar o catálogo agora; tente novamente" });
   }
-  res.json(Object.fromEntries(visible.map((g) => [g.gameId, g])));
 });
 
 // Catálogo pro cliente PEDIR acesso — o oposto de /api/keychains: só o que
@@ -691,27 +834,32 @@ app.get("/api/keychains", async (req, res) => {
 // "Pedir jogo". Exige sessão de cliente — sem isso não tem quem pedir em
 // nome de quem.
 app.get("/api/catalog/requestable", async (req, res) => {
-  const client = await clients.currentClient(clientsStore, req).catch(() => null);
-  if (!client) return res.status(401).json({ error: "faça login com seu link de cliente" });
+  try {
+    const client = await clients.currentClient(clientsStore, req).catch(() => null);
+    if (!client) return res.status(401).json({ error: "faça login com seu link de cliente" });
 
-  const games = await library.getPublishedGames();
-  const result = [];
-  for (const g of games) {
-    const owners = await ownership.getGameOwners(g.gameId);
-    if (owners.includes(client.id)) continue;
-    const pending = await accessRequests.findPending(client.id, g.gameId);
-    result.push({
-      gameId: g.gameId,
-      title: g.title,
-      cover: coverSrc(g),
-      console: platforms.styleOf(g.core).label,
-      pending: Boolean(pending),
-    });
+    const games = await library.getPublishedGames();
+    const result = [];
+    for (const g of games) {
+      const owners = await ownership.getGameOwners(g.gameId);
+      if (owners.includes(client.id)) continue;
+      const pending = await accessRequests.findPending(client.id, g.gameId);
+      result.push({
+        gameId: g.gameId,
+        title: g.title,
+        cover: coverSrc(g),
+        console: platforms.styleOf(g.core).label,
+        pending: Boolean(pending),
+      });
+    }
+    res.json({ games: result });
+  } catch (err) {
+    console.error("[catalog] falha ao montar jogos pra pedir:", err.message);
+    res.status(503).json({ error: "não foi possível carregar agora; tente novamente" });
   }
-  res.json({ games: result });
 });
 
-app.post("/api/access-requests", accessRequestLimiter, async (req, res) => {
+app.post("/api/access-requests", accessRequestLimiter, requireCsrf, async (req, res) => {
   const client = await clients.currentClient(clientsStore, req).catch(() => null);
   if (!client) return res.status(401).json({ error: "faça login com seu link de cliente pra pedir acesso" });
 
@@ -739,6 +887,7 @@ app.post("/api/access-requests", accessRequestLimiter, async (req, res) => {
 
 app.get("/play/:keyId", requireAccess, async (req, res) => {
   const { keyId } = req.params;
+  try {
   // Só jogo publicado — um jogo importado em lote e ainda sem revisão
   // (status "review") não deve ficar jogável por quem adivinhar/guardar a
   // URL antes de alguém confirmar que está pronto.
@@ -857,7 +1006,12 @@ app.get("/play/:keyId", requireAccess, async (req, res) => {
       <svg viewBox="0 0 576 512" fill="currentColor"><path d="M572.694 292.093L500.27 416.248A63.997 63.997 0 0 1 444.989 448H45.025c-18.523 0-30.064-20.093-20.731-36.093l72.424-124.155A64 64 0 0 1 152 256h399.964c18.523 0 30.064 20.093 20.73 36.093zM152 224h328v-48c0-26.51-21.49-48-48-48H272l-64-64H48C21.49 64 0 85.49 0 112v278.046l69.077-118.418C86.214 242.25 117.989 224 152 224z"/></svg>
       <span>Carregar</span>
     </button>
+    <button type="button" id="quick-clip" class="quick-action-btn" aria-label="Baixar clipe da partida" disabled>
+      <svg viewBox="0 0 576 512" fill="currentColor"><path d="M0 128C0 92.7 28.7 64 64 64H320c35.3 0 64 28.7 64 64V384c0 35.3-28.7 64-64 64H64c-35.3 0-64-28.7-64-64V128zm633 0.6c9.6 5.6 15.5 15.9 15.5 27V356.4c0 11.1-5.9 21.4-15.5 27c-9.6 5.6-21.4 5.5-31-0.4L448 322.4V189.6l154-59.4C606.6 123.9 618.4 123.4 628 129c0.3 0.2 0.7 0.4 1 0.6z"/></svg>
+      <span>Clipe</span>
+    </button>
   </div>
+  <div id="clip-indicator" class="clip-indicator" hidden>🔴 Gravando clipe</div>
 
   <div id="save-toast" class="save-toast" hidden></div>
 
@@ -870,6 +1024,14 @@ app.get("/play/:keyId", requireAccess, async (req, res) => {
   <script src="${EJS_CDN_URL}loader.js"></script>
 </body>
 </html>`);
+  } catch (err) {
+    console.error("[play] falha ao carregar o jogo:", err.message);
+    systemPage(res, 503, {
+      icon: "⚠️",
+      title: "Não deu pra carregar esse jogo agora",
+      body: "<p>Tenta de novo em alguns segundos.</p>",
+    });
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -911,6 +1073,7 @@ app.get("/admin", async (req, res) => {
   if (!access.adminConfigured) return adminSetupPage(res);
   if (!access.isAdmin(req)) return adminLoginPage(res);
   const csrfToken = csrf.setToken(res);
+  try {
 
   // Painel de biblioteca (Fase 9) — contagem simples a partir do catálogo já
   // carregado, sem escanear o Blob. "Verificar biblioteca" cruzando
@@ -1109,6 +1272,14 @@ app.get("/admin", async (req, res) => {
   <script src="/js/admin.js" defer></script>
 </body>
 </html>`);
+  } catch (err) {
+    console.error("[admin] falha ao montar o painel:", err.message);
+    systemPage(res, 503, {
+      icon: "⚠️",
+      title: "Não deu pra carregar o painel",
+      body: "<p>Tenta de novo em alguns segundos.</p>",
+    });
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -1213,6 +1384,16 @@ function requireAdminMutation(req, res, next) {
   if (!access.isAdmin(req)) return res.status(401).json({ error: "não autorizado" });
   if (!csrf.isValid(req)) {
     return res.status(403).json({ error: "requisição administrativa sem token CSRF válido; recarregue o painel" });
+  }
+  next();
+}
+
+// Mesmo padrão de requireAdminMutation, pro lado do cliente: POST /c/:id/claim,
+// POST /api/access-requests e POST /api/heartbeat mudam estado mas não
+// passavam por nenhuma checagem de CSRF — só o admin tinha essa proteção.
+function requireCsrf(req, res, next) {
+  if (!csrf.isValid(req)) {
+    return res.status(403).json({ error: "requisição sem token válido; recarregue a página e tente de novo" });
   }
   next();
 }

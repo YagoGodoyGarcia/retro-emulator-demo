@@ -577,6 +577,10 @@
     if (loadBtn) loadBtn.disabled = false;
     kickEmulator();
     firstFrameTimer = setTimeout(watchFirstFrame, 250);
+    // Pequeno atraso: dá tempo do canvas ganhar as dimensões reais (o
+    // primeiro frame de verdade), em vez de capturar um canvas 0x0/em
+    // branco no exato instante do evento de start.
+    setTimeout(startClipRecording, 800);
   };
 
   // De propósito SEM window.EJS_onSaveState / window.EJS_onLoadState.
@@ -687,6 +691,140 @@
       setTimeout(function () { el.hidden = true; }, 260);
     }, 2000);
   }
+
+  // ------------------------------------------------------------------
+  // clipe automático da sessão (canvas.captureStream + MediaRecorder)
+  //
+  // 100% no navegador, sem servidor: grava o canvas do jogo desde que a
+  // partida começa até um teto de tempo (ou até a pessoa sair da tela),
+  // e deixa baixar o clipe pronto no final. Só vídeo — sem áudio: capturar
+  // o áudio exigiria plugar um MediaStreamAudioDestinationNode dentro do
+  // AudioContext que o EmulatorJS já gerencia sozinho, e esse é um dos
+  // pontos mais frágeis do boot no mobile (ver o desbloqueio de áudio logo
+  // abaixo) — mexer nele sem aparelho físico pra testar é risco alto pra
+  // um retorno baixo (o clipe continua útil sem som).
+  //
+  // Detecção de suporte primeiro: canvas.captureStream() tem histórico de
+  // suporte inconsistente no Safari/iOS (o mesmo território que já causou
+  // os crashes documentados deste projeto) — se não tiver os dois, a
+  // função inteira vira no-op silencioso, sem tocar no resto do player.
+  // ------------------------------------------------------------------
+
+  var RECORD_MAX_MS = 60000;
+  var recordingSupported =
+    typeof HTMLCanvasElement !== "undefined" &&
+    !!HTMLCanvasElement.prototype.captureStream &&
+    typeof window.MediaRecorder === "function";
+
+  var recorder = null;
+  var recordedChunks = [];
+  var clipBlob = null;
+  var clipStopTimer = null;
+  var clipBtn = document.getElementById("quick-clip");
+  var clipIndicator = document.getElementById("clip-indicator");
+
+  function pickRecordMimeType() {
+    var candidates = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"];
+    for (var i = 0; i < candidates.length; i++) {
+      if (window.MediaRecorder.isTypeSupported && window.MediaRecorder.isTypeSupported(candidates[i])) {
+        return candidates[i];
+      }
+    }
+    return "";
+  }
+
+  function setClipButtonState(state) {
+    if (!clipBtn) return;
+    if (state === "recording") {
+      clipBtn.disabled = true;
+      clipBtn.textContent = "Gravando clipe...";
+    } else if (state === "ready") {
+      clipBtn.disabled = false;
+      clipBtn.textContent = "Baixar clipe";
+    } else if (state === "unsupported") {
+      clipBtn.disabled = true;
+      clipBtn.textContent = "Clipe indisponível";
+    } else {
+      // "idle": suportado, mas o jogo ainda não começou pra ter o que gravar.
+      clipBtn.disabled = true;
+      clipBtn.textContent = "Clipe";
+    }
+    if (clipIndicator) clipIndicator.hidden = state !== "recording";
+  }
+
+  function finishRecording() {
+    if (!recorder || recorder.state === "inactive") return;
+    try { recorder.stop(); } catch (e) {}
+  }
+
+  function startClipRecording() {
+    if (!recordingSupported || recorder) return;
+    var canvas = document.querySelector("#game canvas");
+    if (!canvas || !canvas.width || !canvas.height) return;
+    var mimeType = pickRecordMimeType();
+    if (!mimeType) { setClipButtonState("unsupported"); return; }
+
+    try {
+      var stream = canvas.captureStream(30);
+      recorder = new MediaRecorder(stream, { mimeType: mimeType });
+    } catch (e) {
+      recorder = null;
+      setClipButtonState("unsupported");
+      return;
+    }
+
+    recordedChunks = [];
+    setClipButtonState("recording");
+
+    recorder.ondataavailable = function (event) {
+      if (event.data && event.data.size > 0) recordedChunks.push(event.data);
+    };
+    recorder.onstop = function () {
+      if (recordedChunks.length) {
+        clipBlob = new Blob(recordedChunks, { type: mimeType.split(";")[0] });
+        setClipButtonState("ready");
+      } else {
+        setClipButtonState("unsupported");
+      }
+      clearTimeout(clipStopTimer);
+    };
+    recorder.onerror = function () {
+      setClipButtonState("unsupported");
+    };
+
+    try {
+      recorder.start(1000); // timeslice: chunks progressivos, não um Blob gigante só no fim
+    } catch (e) {
+      recorder = null;
+      setClipButtonState("unsupported");
+      return;
+    }
+    clipStopTimer = setTimeout(finishRecording, RECORD_MAX_MS);
+  }
+
+  function downloadClip() {
+    if (!clipBlob) return;
+    var url = URL.createObjectURL(clipBlob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "myde-clipe-" + CFG.id + ".webm";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+  }
+
+  if (clipBtn) {
+    setClipButtonState(recordingSupported ? "idle" : "unsupported");
+    clipBtn.addEventListener("click", function () {
+      if (clipBlob) downloadClip();
+    });
+  }
+
+  // Corta o clipe onde a sessão realmente terminou (voltou pra biblioteca,
+  // fechou a aba) em vez de sempre esperar o teto de 60s — clipe curto
+  // ainda é melhor que nenhum clipe.
+  window.addEventListener("pagehide", finishRecording);
 
   // ------------------------------------------------------------------
   // o toque que destrava tela cheia/paisagem
