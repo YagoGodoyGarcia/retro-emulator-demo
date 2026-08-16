@@ -892,6 +892,48 @@
     btn.addEventListener("click", function () { setActiveTab(btn.dataset.tab); });
   });
 
+  // -------------------------------------------------------------------
+  // botão "Solicitar acesso" na vitrine vazia (carteira sem jogo nenhum) —
+  // mesmo endpoint/fluxo que a aba "Pedir jogo" e a tela de bloqueio do
+  // /play/:id já usam. Quando o servidor não sabe pra qual jogo sugerir
+  // (sem __SUGGESTED_REQUEST__), só abre a aba "Pedir jogo" em vez de
+  // adivinhar.
+  // -------------------------------------------------------------------
+
+  var emptyStateRequestBtn = document.getElementById("empty-state-request-btn");
+  if (emptyStateRequestBtn) {
+    emptyStateRequestBtn.addEventListener("click", function () {
+      var suggested = window.__SUGGESTED_REQUEST__;
+      if (!suggested) {
+        setActiveTab("pedir");
+        return;
+      }
+      emptyStateRequestBtn.disabled = true;
+      emptyStateRequestBtn.textContent = "Enviando...";
+      fetch("/api/access-requests", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json", "X-CSRF-Token": window.__CSRF__ || "" },
+        body: JSON.stringify({ gameId: suggested.gameId }),
+      })
+        .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+        .then(function (res) {
+          if (!res.ok) {
+            emptyStateRequestBtn.disabled = false;
+            emptyStateRequestBtn.textContent = "Solicitar acesso a " + suggested.title;
+            alert((res.data && res.data.error) || "Falha ao enviar o pedido.");
+            return;
+          }
+          emptyStateRequestBtn.textContent = "Pedido enviado — aguardando aprovação";
+        })
+        .catch(function () {
+          emptyStateRequestBtn.disabled = false;
+          emptyStateRequestBtn.textContent = "Solicitar acesso a " + suggested.title;
+          alert("Falha de rede. Tenta de novo.");
+        });
+    });
+  }
+
   // Arrastar pra folhear.
   //
   // A captura do ponteiro só entra DEPOIS que o gesto vira arrasto de verdade.

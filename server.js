@@ -610,6 +610,18 @@ app.get("/", requireAccess, async (req, res) => {
     const owners = ownersByGame.get(g.gameId) || [];
     return client ? owners.includes(client.id) : owners.length === 0;
   });
+  // Carteira sem jogo nenhum: em vez de só um texto apontando pra aba "Pedir
+  // jogo", oferece pedir na hora o jogo que o link dela já era destinado
+  // (claimGameId) — mesmo botão/endpoint que /play/:id já usa pra jogo que
+  // não é seu, só que disparado direto da vitrine vazia.
+  let suggestedRequest = null;
+  if (client && allGames.length === 0 && client.claimGameId) {
+    const suggestedGame = allGamesUnfiltered.find((g) => g.gameId === client.claimGameId);
+    if (suggestedGame) {
+      const pending = await accessRequests.findPending(client.id, suggestedGame.gameId).catch(() => null);
+      suggestedRequest = { gameId: suggestedGame.gameId, title: suggestedGame.title, pending: Boolean(pending) };
+    }
+  }
   const plays = await playStats.getCounts(allGames.map((g) => g.gameId));
   // Destaque continua abrindo a vitrine primeiro — é um slot editorial, não
   // uma métrica. Dentro de cada grupo (destaque / resto), ordena por
@@ -730,9 +742,18 @@ app.get("/", requireAccess, async (req, res) => {
 
       <p id="empty-state" class="empty-state" hidden>${
         client && allGames.length === 0
-          ? 'Você ainda não tem nenhum jogo atribuído. Peça acesso na aba <strong>Pedir jogo</strong>.'
+          ? "Você ainda não tem nenhum jogo atribuído."
           : "Nenhum jogo encontrado."
       }</p>
+      ${client && allGames.length === 0
+        ? `<button type="button" class="btn" id="empty-state-request-btn" ${suggestedRequest && suggestedRequest.pending ? "disabled" : ""}>${
+            suggestedRequest
+              ? suggestedRequest.pending
+                ? "Pedido enviado — aguardando aprovação"
+                : `Solicitar acesso a ${escapeHtml(suggestedRequest.title)}`
+              : "Pedir jogo"
+          }</button>`
+        : ""}
 
       <div class="hud" id="hud">
         <div class="hud-meta">
@@ -782,6 +803,7 @@ app.get("/", requireAccess, async (req, res) => {
   <script>
     window.__SESSION__ = ${req.mydeSession && req.mydeSession.token ? "true" : "false"};
     window.__CSRF__ = ${jsonForScript(csrfToken)};
+    window.__SUGGESTED_REQUEST__ = ${jsonForScript(suggestedRequest)};
     // Ordem central de plataformas (lib/platforms.js) pra agrupar a folha
     // "ver todos os jogos" sem depender da ordem em que os jogos foram
     // cadastrados (seção 30 do briefing).
