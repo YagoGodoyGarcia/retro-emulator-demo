@@ -21,6 +21,7 @@ const romHashLib = require("./lib/rom-hash");
 const blobUploadPolicy = require("./lib/blob-upload-policy");
 const libraryScan = require("./lib/library-scan");
 const playStats = require("./lib/play-stats");
+const accessLog = require("./lib/access-log");
 const { handleUpload: handleBlobUpload } = require("@vercel/blob/client");
 
 const app = express();
@@ -28,7 +29,7 @@ const PORT = process.env.PORT || 3000;
 
 // CDN pública do EmulatorJS. Pode ser trocada via env sem mexer em código.
 const EJS_CDN_URL = process.env.EMULATORJS_CDN_URL || "https://cdn.emulatorjs.org/4.2.3/data/";
-const ASSET_VERSION = process.env.ASSET_VERSION || "20260816-sonic-fix-v2";
+const ASSET_VERSION = process.env.ASSET_VERSION || "20260816-mobile-product-v1";
 
 // cover pode ser um nome de arquivo local ("jogo.png", vira /covers/jogo.png)
 // ou uma URL completa (Vercel Blob, upload do admin em produção) — essa é
@@ -187,6 +188,66 @@ function requestAccessPage(res, cfg, pending) {
 </html>`);
 }
 
+function clientOnboardingPage(res, client, game) {
+  const title = game ? escapeHtml(game.title) : "seu jogo";
+  res.status(200).send(`<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Entrar no MYDE</title>
+  <link rel="stylesheet" href="/css/style.css" />${PWA_HEAD}
+</head>
+<body class="system-body">
+  <main class="system-card onboarding-card">
+    <div class="system-mark">MYDE</div>
+    <div class="system-icon">🕹️</div>
+    <h1>Seu jogo está aqui</h1>
+    <p>Cadastre seu nome para abrir sua carteira. Este link libera <strong>${title}</strong> para você.</p>
+    <form id="claim-form" class="onboarding-form">
+      <label>Seu nome<input class="field" id="claim-name" name="name" autocomplete="name" maxlength="60" required placeholder="Como podemos chamar você?" /></label>
+      <label>E-mail <span>(opcional)</span><input class="field" id="claim-email" name="email" type="email" autocomplete="email" inputmode="email" maxlength="120" placeholder="Para receber novidades" /></label>
+      <button class="btn" type="submit" id="claim-btn">Abrir minha carteira</button>
+      <p class="form-error" id="claim-error" hidden></p>
+    </form>
+    <p class="panel-note">Não precisa criar senha. Você poderá voltar por este mesmo link.</p>
+  </main>
+  <script>
+    (function () {
+      var form = document.getElementById("claim-form");
+      var btn = document.getElementById("claim-btn");
+      var error = document.getElementById("claim-error");
+      form.addEventListener("submit", function (event) {
+        event.preventDefault();
+        btn.disabled = true;
+        btn.textContent = "Preparando sua carteira...";
+        error.hidden = true;
+        fetch(${jsonForScript(`/c/${client.id}/claim`)}, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: document.getElementById("claim-name").value,
+            email: document.getElementById("claim-email").value,
+          }),
+        }).then(function (response) {
+          return response.json().then(function (data) { return { ok: response.ok, data: data }; });
+        }).then(function (result) {
+          if (!result.ok) throw new Error(result.data && result.data.error || "Não foi possível cadastrar agora.");
+          window.location.href = result.data.redirect || "/";
+        }).catch(function (err) {
+          error.textContent = err.message || "Falha de rede. Tente novamente.";
+          error.hidden = false;
+          btn.disabled = false;
+          btn.textContent = "Abrir minha carteira";
+        });
+      });
+    })();
+  </script>
+</body>
+</html>`);
+}
+
 // ---------------------------------------------------------------------------
 // rate limiting — por IP, em memória (ver lib/rate-limit.js pra ressalva
 // sobre serverless). Cobre as rotas que aceitam um "código" vindo de fora
@@ -285,25 +346,70 @@ app.get("/c/:id", loginLinkLimiter, async (req, res) => {
     });
   }
 
-  clients.startSession(res, client.id);
-  clients.touch(clientsStore, client.id).catch(() => {});
+  let publishedGames = [];
+  try { publishedGames = await library.getPublishedGames(); } catch (err) {}
+  const claimGameId = client.claimGameId || "sonic-the-hedgehog-2-2";
+  const claimGame = publishedGames.find((game) => game.gameId === claimGameId) || publishedGames[0] || null;
 
-  // Links /c/:id são compartilhados para uma pessoa jogar, não para ela
-  // descobrir manualmente qual cartucho foi atribuído. Quando a conta tem
-  // exatamente um jogo publicado, leva direto ao player; contas com vários
-  // jogos continuam na biblioteca para escolher entre eles.
-  try {
-    const ownedGameIds = await ownership.getClientGames(client.id);
-    if (ownedGameIds.length === 1) {
-      const publishedGames = await library.getPublishedGames();
-      const ownedGame = publishedGames.find((game) => game.gameId === ownedGameIds[0]);
-      if (ownedGame) return res.redirect(302, `/play/${encodeURIComponent(ownedGame.gameId)}`);
-    }
-  } catch (err) {
-    console.warn("[clients] não foi possível resolver o jogo exclusivo:", err.message);
+  if (!client.label) {
+    clients.touch(clientsStore, client.id).catch(() => {});
+    accessLog.record(client.id, {
+      type: "visit",
+      gameId: claimGame && claimGame.gameId,
+      path: req.originalUrl,
+      userAgent: req.get("user-agent"),
+    }).catch(() => {});
+    return clientOnboardingPage(res, client, claimGame);
   }
 
+  clients.startSession(res, client.id);
+  clients.touch(clientsStore, client.id).catch(() => {});
+  accessLog.record(client.id, {
+    type: "login",
+    path: req.originalUrl,
+    userAgent: req.get("user-agent"),
+  }).catch(() => {});
+
+  const ownedGameIds = await ownership.getClientGames(client.id).catch(() => []);
+  if (ownedGameIds.length === 1) {
+    const ownedGame = publishedGames.find((game) => game.gameId === ownedGameIds[0]);
+    if (ownedGame) return res.redirect(302, `/play/${encodeURIComponent(ownedGame.gameId)}`);
+  }
   res.redirect(302, "/");
+});
+
+app.post("/c/:id/claim", loginLinkLimiter, async (req, res) => {
+  const client = await clientsStore.get(req.params.id).catch(() => null);
+  if (!client || client.revoked) return res.status(404).json({ error: "link indisponível" });
+  const result = clients.claim(client, req.body && req.body.name, req.body && req.body.email);
+  if (!result.ok) return res.status(400).json({ error: result.error });
+
+  let games;
+  try {
+    games = await library.getPublishedGames();
+  } catch (err) {
+    return res.status(503).json({ error: "não foi possível carregar o jogo agora; tente novamente" });
+  }
+  const gameId = client.claimGameId || "sonic-the-hedgehog-2-2";
+  const game = games.find((item) => item.gameId === gameId) || games[0];
+  if (!game) return res.status(503).json({ error: "nenhum jogo publicado está disponível agora" });
+
+  client.claimGameId = game.gameId;
+  try {
+    await ownership.addOwner(game.gameId, client.id);
+    await clientsStore.put(client);
+  } catch (err) {
+    console.error("[clients] falha ao concluir cadastro:", err.message);
+    return res.status(503).json({ error: "não foi possível salvar sua carteira agora; tente novamente" });
+  }
+  clients.startSession(res, client.id);
+  accessLog.record(client.id, {
+    type: "claim",
+    gameId: game.gameId,
+    path: req.originalUrl,
+    userAgent: req.get("user-agent"),
+  }).catch(() => {});
+  res.json({ ok: true, redirect: "/" });
 });
 
 app.get("/sair", (req, res) => {
@@ -313,6 +419,17 @@ app.get("/sair", (req, res) => {
 
 // Portão das páginas. Em ACCESS_MODE=open não bloqueia nada.
 async function requireAccess(req, res, next) {
+  if (access.isAdmin(req)) {
+    req.mydeSession = { allowed: true, admin: true };
+    return next();
+  }
+  const client = await clients.currentClient(clientsStore, req).catch(() => null);
+  if (client) {
+    req.mydeClient = client;
+    req.mydeSession = { allowed: true, client: true };
+    return next();
+  }
+
   let session;
   try {
     session = await access.currentSession(store, req, res);
@@ -347,16 +464,16 @@ async function requireAccess(req, res, next) {
 app.get("/", requireAccess, async (req, res) => {
   const client = await clients.currentClient(clientsStore, req).catch(() => null);
   const allGamesUnfiltered = await library.getPublishedGames();
-  const owners = await Promise.all(allGamesUnfiltered.map((g) => ownership.getOwner(g.gameId)));
-  const ownerByGame = new Map(allGamesUnfiltered.map((g, i) => [g.gameId, owners[i]]));
+  const ownerLists = await Promise.all(allGamesUnfiltered.map((g) => ownership.getGameOwners(g.gameId)));
+  const ownersByGame = new Map(allGamesUnfiltered.map((g, i) => [g.gameId, ownerLists[i] || []]));
   // Fechado por padrão: conta de cliente logada só vê o que foi atribuído a
   // ela — jogo sem dono NÃO é "de graça" pra quem está logado como cliente
   // (não existe mais "aberto pra todo mundo" por ausência de dono). Quem
   // não é cliente (visitante pelo link de convite tradicional) continua no
   // fluxo antigo: só os jogos sem dono nenhum, do jeito que sempre foi.
   const allGames = allGamesUnfiltered.filter((g) => {
-    const owner = ownerByGame.get(g.gameId);
-    return client ? owner === client.id : !owner;
+    const owners = ownersByGame.get(g.gameId) || [];
+    return client ? owners.includes(client.id) : owners.length === 0;
   });
   const plays = await playStats.getCounts(allGames.map((g) => g.gameId));
   // Destaque continua abrindo a vitrine primeiro — é um slot editorial, não
@@ -385,7 +502,7 @@ app.get("/", requireAccess, async (req, res) => {
       const genre = cfg.genre || "";
       const coreFile = platforms.coreFileOf(cfg.core);
       const coreUrl = coreFile ? `${EJS_CDN_URL}cores/${coreFile}-wasm.data` : "";
-      const isMine = client && ownerByGame.get(cfg.gameId) === client.id;
+      const isMine = client && (ownersByGame.get(cfg.gameId) || []).includes(client.id);
       const badge = isMine
         ? '<span class="tile-badge tile-badge--mine">Seu jogo</span>'
         : cfg.featured
@@ -557,8 +674,8 @@ app.get("/api/keychains", async (req, res) => {
   const games = await library.getPublishedGames();
   const visible = [];
   for (const g of games) {
-    const owner = await ownership.getOwner(g.gameId);
-    if (client ? owner === client.id : !owner) visible.push(g);
+    const owners = await ownership.getGameOwners(g.gameId);
+    if (client ? owners.includes(client.id) : owners.length === 0) visible.push(g);
   }
   res.json(Object.fromEntries(visible.map((g) => [g.gameId, g])));
 });
@@ -574,8 +691,8 @@ app.get("/api/catalog/requestable", async (req, res) => {
   const games = await library.getPublishedGames();
   const result = [];
   for (const g of games) {
-    const owner = await ownership.getOwner(g.gameId);
-    if (owner === client.id) continue;
+    const owners = await ownership.getGameOwners(g.gameId);
+    if (owners.includes(client.id)) continue;
     const pending = await accessRequests.findPending(client.id, g.gameId);
     result.push({
       gameId: g.gameId,
@@ -598,8 +715,8 @@ app.post("/api/access-requests", accessRequestLimiter, async (req, res) => {
   const game = await library.getGame(gameId);
   if (!game) return res.status(404).json({ error: "jogo não encontrado" });
 
-  const owner = await ownership.getOwner(gameId);
-  if (owner === client.id) return res.status(400).json({ error: "esse jogo já é seu" });
+  const owners = await ownership.getGameOwners(gameId);
+  if (owners.includes(client.id)) return res.status(400).json({ error: "esse jogo já é seu" });
 
   try {
     const request = await accessRequests.createRequest(client.id, gameId);
@@ -637,25 +754,34 @@ app.get("/play/:keyId", requireAccess, async (req, res) => {
   // dono NÃO libera automaticamente (mesma regra da home/catálogo). Quem
   // não é cliente: comportamento de sempre, só bloqueia se o jogo tiver
   // dono (aí não tem quem pedir acesso, então é bloqueio simples).
-  const owner = await ownership.getOwner(keyId).catch(() => null);
+  const owners = await ownership.getGameOwners(keyId).catch(() => []);
   const client = await clients.currentClient(clientsStore, req).catch(() => null);
+  const isAdmin = access.isAdmin(req);
 
-  if (client) {
-    if (owner !== client.id) {
+  if (!isAdmin && client) {
+    if (!owners.includes(client.id)) {
       const pending = await accessRequests.findPending(client.id, keyId).catch(() => null);
       return requestAccessPage(res, cfg, Boolean(pending));
     }
-  } else if (owner) {
+  } else if (!isAdmin && !client && owners.length) {
     return systemPage(res, 403, {
       icon: "🔒",
       title: "Jogo exclusivo",
-      body: "<p>Este cartucho pertence a uma conta específica. Se você tem uma conta MYDE, entre pelo seu link de login pra pedir acesso.</p>",
+      body: "<p>Este cartucho pertence a uma carteira específica. Entre pelo link recebido para jogar.</p>",
     });
   }
 
   // Não bloqueia o carregamento da página por causa disso — é só contagem
   // pra ordenar a home por popularidade depois.
   playStats.increment(keyId).catch(() => {});
+  if (client) {
+    accessLog.record(client.id, {
+      type: "play",
+      gameId: keyId,
+      path: req.originalUrl,
+      userAgent: req.get("user-agent"),
+    }).catch(() => {});
+  }
 
   const playConfig = {
     id: keyId,
@@ -696,7 +822,8 @@ app.get("/play/:keyId", requireAccess, async (req, res) => {
   </div>
   <a href="/" class="back-btn" aria-label="Voltar pra biblioteca">&larr;</a>
 
-  <div class="quick-actions">
+  <button type="button" id="player-menu-toggle" class="player-menu-toggle" aria-label="Abrir menu do jogo" aria-expanded="false">⋯</button>
+  <div class="quick-actions" id="quick-actions" hidden>
     <button type="button" id="quick-save" class="quick-action-btn" aria-label="Salvar jogo">
       <svg viewBox="0 0 448 512" fill="currentColor"><path d="M433.941 129.941l-83.882-83.882A48 48 0 0 0 316.118 32H48C21.49 32 0 53.49 0 80v352c0 26.51 21.49 48 48 48h352c26.51 0 48-21.49 48-48V163.882a48 48 0 0 0-14.059-33.941zM224 416c-35.346 0-64-28.654-64-64 0-35.346 28.654-64 64-64s64 28.654 64 64c0 35.346-28.654 64-64 64zm96-304.52V212c0 6.627-5.373 12-12 12H76c-6.627 0-12-5.373-12-12V108c0-6.627 5.373-12 12-12h228.52c3.183 0 6.235 1.264 8.485 3.515l3.48 3.48A11.996 11.996 0 0 1 320 111.48z"/></svg>
       <span>Salvar</span>
@@ -860,20 +987,28 @@ app.get("/admin", async (req, res) => {
     <div class="token-list" id="token-list"></div>
 
     <div class="panel">
-      <h2>Clientes (acesso exclusivo por jogo)</h2>
+      <h2>Links para jogadores</h2>
       <p class="panel-note">
-        Crie uma conta pro cliente, copie o link de login e mande por e-mail ou WhatsApp — ele
-        entra por ali, sem senha. Depois atribua o jogo que é dele: a partir daí, só essa conta
-        joga aquele cartucho, mesmo quem tem link de convite fica de fora.
+        Gere um link, escolha o jogo e envie. A pessoa abre, escreve o nome e e-mail opcional,
+        recebe o jogo na própria carteira e pode jogar sem senha. Se preencher o nome agora,
+        o cadastro já fica pronto para você testar.
       </p>
       <form class="field-row" id="client-create-form">
-        <input class="field" id="client-label" type="text" placeholder="Nome do cliente" maxlength="60" />
-        <input class="field" id="client-email" type="email" placeholder="E-mail (opcional, só sua referência)" maxlength="120" />
-        <button class="btn" id="client-create-btn" type="submit">Criar cliente</button>
+        <input class="field" id="client-label" type="text" placeholder="Nome (opcional: cadastro posterior)" maxlength="60" />
+        <input class="field" id="client-email" type="email" placeholder="E-mail (opcional)" maxlength="120" />
+        <select class="field" id="client-game" required><option value="" selected disabled>Jogo do link</option></select>
+        <button class="btn" id="client-create-btn" type="submit">Gerar link</button>
       </form>
     </div>
 
     <div class="token-list" id="client-list"></div>
+
+    <div class="panel">
+      <h2>Relatório de acessos</h2>
+      <p class="panel-note">Acompanhe quem abriu o link, quem cadastrou o nome, último acesso e quantas vezes abriu cada jogo. Atualiza a cada 20 segundos.</p>
+      <div class="report-summary" id="access-report-summary"></div>
+      <div class="report-table-wrap"><div id="access-report"></div></div>
+    </div>
 
     <div class="panel">
       <h2>Solicitações de acesso</h2>
@@ -1175,6 +1310,7 @@ app.get("/admin/api/clients", requireAdmin, async (req, res) => {
           url,
           qr: await QRCode.toDataURL(url, { margin: 1, width: 220 }),
           games: await ownership.getClientGames(c.id),
+          access: await accessLog.summary(c.id),
         };
       })
     );
@@ -1185,11 +1321,38 @@ app.get("/admin/api/clients", requireAdmin, async (req, res) => {
   }
 });
 
+app.get("/admin/api/access-report", requireAdmin, async (req, res) => {
+  try {
+    const rows = await clientsStore.list();
+    rows.sort((a, b) => (b.lastSeen || b.createdAt) - (a.lastSeen || a.createdAt));
+    const report = await Promise.all(rows.map(async (client) => ({
+      clientId: client.id,
+      label: client.label || "Cadastro pendente",
+      email: client.email || "",
+      createdAt: client.createdAt,
+      claimedAt: client.claimedAt || null,
+      lastSeen: client.lastSeen || null,
+      revoked: Boolean(client.revoked),
+      games: await ownership.getClientGames(client.id),
+      access: await accessLog.summary(client.id),
+    })));
+    res.json({ report, durable: accessLog.durable });
+  } catch (err) {
+    console.error("[admin] falha ao gerar relatório de acessos:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post("/admin/api/clients", requireAdminMutation, async (req, res) => {
   try {
+    const gameId = String(req.body.gameId || "sonic-the-hedgehog-2-2").trim();
+    const game = (await library.getPublishedGames()).find((item) => item.gameId === gameId);
+    if (!game) return res.status(400).json({ error: "jogo não encontrado ou não publicado" });
     const client = clients.newClient(req.body.label, req.body.email);
+    client.claimGameId = game.gameId;
     await clientsStore.put(client);
-    res.json({ client });
+    if (client.claimedAt) await ownership.addOwner(game.gameId, client.id);
+    res.json({ client, game: { gameId: game.gameId, title: game.title } });
   } catch (err) {
     console.error("[admin] falha ao criar cliente:", err.message);
     res.status(500).json({ error: err.message });
@@ -1225,7 +1388,7 @@ app.post("/admin/api/clients/:id/unrevoke", requireAdminMutation, async (req, re
 app.delete("/admin/api/clients/:id", requireAdminMutation, async (req, res) => {
   try {
     const games = await ownership.getClientGames(req.params.id);
-    await Promise.all(games.map((gameId) => ownership.removeOwner(gameId)));
+    await Promise.all(games.map((gameId) => ownership.removeOwner(gameId, req.params.id)));
     await clientsStore.remove(req.params.id);
     res.json({ ok: true });
   } catch (err) {
@@ -1240,7 +1403,7 @@ app.post("/admin/api/clients/:id/games", requireAdminMutation, async (req, res) 
     if (!client) return res.status(404).json({ error: "não encontrado" });
     const gameId = String(req.body.gameId || "").trim();
     if (!gameId) return res.status(400).json({ error: "informe o jogo" });
-    await ownership.setOwner(gameId, client.id);
+    await ownership.addOwner(gameId, client.id);
     res.json({ ok: true });
   } catch (err) {
     console.error("[admin] falha ao atribuir jogo:", err.message);
@@ -1250,9 +1413,9 @@ app.post("/admin/api/clients/:id/games", requireAdminMutation, async (req, res) 
 
 app.delete("/admin/api/clients/:id/games/:gameId", requireAdminMutation, async (req, res) => {
   try {
-    const owner = await ownership.getOwner(req.params.gameId);
-    if (owner !== req.params.id) return res.status(404).json({ error: "esta conta não é dona desse jogo" });
-    await ownership.removeOwner(req.params.gameId);
+    const owners = await ownership.getGameOwners(req.params.gameId);
+    if (!owners.includes(req.params.id)) return res.status(404).json({ error: "esta conta não é dona desse jogo" });
+    await ownership.removeOwner(req.params.gameId, req.params.id);
     res.json({ ok: true });
   } catch (err) {
     console.error("[admin] falha ao remover posse:", err.message);
@@ -1294,14 +1457,7 @@ app.post("/admin/api/access-requests/:id/approve", requireAdminMutation, async (
       return res.status(404).json({ error: "não encontrado (talvez já resolvido)" });
     }
 
-    const currentOwner = await ownership.getOwner(request.gameId);
-    if (currentOwner && currentOwner !== request.clientId) {
-      return res.status(409).json({
-        error: "esse jogo já tem outro dono agora — remova a posse atual antes de aprovar este pedido",
-      });
-    }
-
-    await ownership.setOwner(request.gameId, request.clientId);
+    await ownership.addOwner(request.gameId, request.clientId);
     await accessRequests.resolveRequest(request.id, "approved");
 
     // Outros pedidos pendentes pro MESMO jogo (de outros clientes) deixam de

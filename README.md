@@ -26,11 +26,14 @@ Abre em `http://localhost:3000`.
 
 | Rota | Descrição |
 |---|---|
-| `GET /` | Vitrine (carrossel de jogos) |
-| `GET /play/:id` | Player em tela cheia |
-| `GET /t/:token` | Resgate do link de convite (vincula ao aparelho) |
+| `GET /` | Carteira/vitrine de jogos da sessão atual |
+| `GET /play/:id` | Player em tela cheia; admin pode testar qualquer jogo publicado |
+| `GET /c/:id` | Link público do jogador; primeiro acesso abre o cadastro por nome |
+| `POST /c/:id/claim` | Cadastra nome/e-mail opcional e atribui o jogo do link |
+| `GET /t/:token` | Resgate do link de convite tradicional (vincula ao aparelho) |
 | `GET /admin` | Painel de administração (senha obrigatória) |
-| `GET /api/keychains` | Catálogo em JSON (estático + jogos adicionados pelo admin) |
+| `GET /admin/api/access-report` | Relatório de cadastros, acessos e partidas |
+| `GET /api/keychains` | Catálogo JSON filtrado pela carteira atual |
 
 ## Estrutura
 
@@ -75,12 +78,19 @@ Repo pronto para zero-config: `api/index.js` exporta o app Express e
 2. Configurar as variáveis de ambiente da tabela acima
 3. Ativar Storage → Blob (preenche `BLOB_READ_WRITE_TOKEN` automaticamente) se quiser permitir upload de ROM pelo admin
 
-## Acesso por link exclusivo
+## Links públicos e carteira de jogos
 
-Cada link vale para **um aparelho só**: o primeiro aparelho que abre o link
-fica com um cookie assinado (HMAC, `HttpOnly`); qualquer outro aparelho que
-tentar usar a mesma URL é barrado. O painel `/admin` gera os links, mostra o
-QR, e permite **religar** (soltar o aparelho), **revogar** e **apagar**.
+O painel `/admin` gera um link por pessoa e permite escolher o jogo que será
+entregue. O link pode ser enviado por WhatsApp, e-mail ou QR code. Na primeira
+abertura, a pessoa informa apenas o nome e, se quiser, o e-mail. O servidor cria
+a carteira, atribui o jogo escolhido e redireciona para a biblioteca dela; o
+mesmo jogo pode ser compartilhado por várias carteiras sem misturar os acessos.
+
+O link `/c/:id` funciona como uma credencial privada: deve ser enviado somente
+à pessoa destinada. O cookie de sessão é assinado e `HttpOnly`, e o admin pode
+revogar ou apagar o link. O painel também mostra o último acesso, quantidade de
+partidas e eventos recentes. O fluxo antigo `/t/:token` continua separado e
+vincula o convite a um aparelho.
 
 Isso é proteção de **experiência**, não DRM — as ROMs continuam acessíveis
 por URL direta.
@@ -143,7 +153,7 @@ alteração.
 
 ## Inicialização e desempenho no celular
 
-O player usa o CDN versionado do EmulatorJS para manter loader, core e cache na mesma versão. A vitrine pré-carrega apenas a ROM no celular; o core comprimido fica para a tela do player, evitando concorrência durante a navegação. O início automático foi desativado de propósito: depois que o core termina de carregar, o botão nativo `START GAME` do EmulatorJS inicia o jogo dentro de um gesto real do usuário, evitando que o navegador deixe o primeiro frame preso em uma tela cinza por bloqueio de autoplay. O cache do service worker e os assets do player são versionados para que a atualização seja aplicada na primeira navegação, sem depender de um segundo `F5`.
+O player usa o CDN versionado do EmulatorJS para manter loader, core e cache na mesma versão. A vitrine pré-carrega apenas a ROM no celular; o core comprimido fica para a tela do player, evitando concorrência durante a navegação. O botão nativo `START GAME` inicia o jogo dentro de um gesto real do usuário, necessário para o áudio e o primeiro frame no Chrome do iPhone. Depois do gesto inicial, o player aplica o fluxo específico do Mega Drive para sair do título do Sonic e entrar em 1 Player. Salvar e carregar ficam em um menu compacto, e o cache do service worker e os assets são versionados para aplicar atualizações sem F5.
 
 ## Save state
 
@@ -160,5 +170,5 @@ se `GET /roms/<arquivo>` voltou 200.
 ## Fora de escopo (por enquanto)
 
 - Leitura de NFC (o `/t/:token` já é o destino que a tag apontaria)
-- Conta/login de usuário — o vínculo hoje é com o aparelho
+- Senha ou login externo; o produto usa link privado e cadastro leve
 - Save state em banco de dados (o IndexedDB do navegador cobre esta fase)

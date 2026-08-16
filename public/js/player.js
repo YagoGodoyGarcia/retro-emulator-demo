@@ -520,6 +520,14 @@
   // screenshot que é só decorativa aqui).
   var saveBtn = document.getElementById("quick-save");
   var loadBtn = document.getElementById("quick-load");
+  var playerMenuToggle = document.getElementById("player-menu-toggle");
+  var quickActions = document.getElementById("quick-actions");
+  if (playerMenuToggle && quickActions) {
+    playerMenuToggle.addEventListener("click", function () {
+      quickActions.hidden = !quickActions.hidden;
+      playerMenuToggle.setAttribute("aria-expanded", String(!quickActions.hidden));
+    });
+  }
 
   function saveFileName() {
     var emu = window.EJS_emulator;
