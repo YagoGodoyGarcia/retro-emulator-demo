@@ -53,6 +53,7 @@ Abre em `http://localhost:3000`.
 | Variável | Para quê |
 |---|---|
 | `PORT` | Porta do servidor local (padrão 3000) |
+| `PUBLIC_ORIGIN` | URL canônica sem barra final para links e QR codes do painel; recomendada em produção |
 | `ACCESS_MODE` | `open` (padrão) ou `locked` (exige link de convite) |
 | `ADMIN_PASSWORD` | Senha do painel `/admin` |
 | `ACCESS_SECRET` | Segredo fixo para assinar cookies de sessão — gere com `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
@@ -62,6 +63,8 @@ Abre em `http://localhost:3000`.
 | `GAMEURL_<ID>` | Override pontual da ROM de um jogo sem editar o JSON |
 
 Veja `.env.example` para o arquivo completo comentado.
+
+O painel administrativo usa um token CSRF assinado, enviado por header nas operações que alteram dados. Em produção, defina `PUBLIC_ORIGIN` com o domínio oficial para que links e QR codes não dependam de headers de proxy encaminhados pela requisição.
 
 ## Deploy na Vercel
 

@@ -8,6 +8,19 @@
   var form = document.getElementById("create-form");
   var labelInput = document.getElementById("label");
   var createBtn = document.getElementById("create-btn");
+  var csrfToken = window.__ADMIN_CSRF__ || "";
+
+  function adminFetch(url, options) {
+    options = options || {};
+    options.credentials = "same-origin";
+    var method = String(options.method || "GET").toUpperCase();
+    if (method !== "GET" && method !== "HEAD" && method !== "OPTIONS") {
+      var headers = new Headers(options.headers || {});
+      headers.set("X-CSRF-Token", csrfToken);
+      options.headers = headers;
+    }
+    return fetch(url, options);
+  }
 
   function fmtDate(ms) {
     if (!ms) return "—";
@@ -68,7 +81,7 @@
   }
 
   function load() {
-    fetch("/admin/api/tokens", { credentials: "same-origin" })
+    adminFetch("/admin/api/tokens", { credentials: "same-origin" })
       .then(function (r) {
         if (r.status === 401) { window.location.reload(); return null; }
         return r.json();
@@ -80,13 +93,13 @@
   }
 
   function act(url, method) {
-    return fetch(url, { method: method || "POST", credentials: "same-origin" }).then(load);
+    return adminFetch(url, { method: method || "POST", credentials: "same-origin" }).then(load);
   }
 
   form.addEventListener("submit", function (e) {
     e.preventDefault();
     createBtn.disabled = true;
-    fetch("/admin/api/tokens", {
+    adminFetch("/admin/api/tokens", {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
@@ -150,7 +163,7 @@
     var allGamesById = {};
 
     function loadAllGames() {
-      return fetch("/admin/api/all-games", { credentials: "same-origin" })
+      return adminFetch("/admin/api/all-games", { credentials: "same-origin" })
         .then(function (r) { return r.status === 401 ? null : r.json(); })
         .then(function (data) {
           allGamesById = {};
@@ -219,7 +232,7 @@
 
     function loadClients() {
       return loadAllGames().then(function () {
-        return fetch("/admin/api/clients", { credentials: "same-origin" })
+        return adminFetch("/admin/api/clients", { credentials: "same-origin" })
           .then(function (r) { return r.status === 401 ? null : r.json(); })
           .then(function (data) { if (data) renderClients(data.clients); })
           .catch(function () {
@@ -231,7 +244,7 @@
     clientForm.addEventListener("submit", function (e) {
       e.preventDefault();
       clientCreateBtn.disabled = true;
-      fetch("/admin/api/clients", {
+      adminFetch("/admin/api/clients", {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
@@ -263,7 +276,7 @@
         var select = clientList.querySelector('[data-assign-select="' + el.dataset.assign + '"]');
         var gameId = select && select.value;
         if (!gameId) return;
-        fetch("/admin/api/clients/" + el.dataset.assign + "/games", {
+        adminFetch("/admin/api/clients/" + el.dataset.assign + "/games", {
           method: "POST",
           credentials: "same-origin",
           headers: { "Content-Type": "application/json" },
@@ -272,7 +285,7 @@
         return;
       }
       if (el.dataset.unassign) {
-        fetch("/admin/api/clients/" + el.dataset.unassign + "/games/" + encodeURIComponent(el.dataset.game), {
+        adminFetch("/admin/api/clients/" + el.dataset.unassign + "/games/" + encodeURIComponent(el.dataset.game), {
           method: "DELETE",
           credentials: "same-origin",
         }).then(loadClients);
@@ -280,17 +293,17 @@
       }
       if (el.dataset.clientRevoke) {
         if (confirm("Revogar o acesso deste cliente? Ele perde o login na hora.")) {
-          fetch("/admin/api/clients/" + el.dataset.clientRevoke + "/revoke", { method: "POST", credentials: "same-origin" }).then(loadClients);
+          adminFetch("/admin/api/clients/" + el.dataset.clientRevoke + "/revoke", { method: "POST", credentials: "same-origin" }).then(loadClients);
         }
         return;
       }
       if (el.dataset.clientUnrevoke) {
-        fetch("/admin/api/clients/" + el.dataset.clientUnrevoke + "/unrevoke", { method: "POST", credentials: "same-origin" }).then(loadClients);
+        adminFetch("/admin/api/clients/" + el.dataset.clientUnrevoke + "/unrevoke", { method: "POST", credentials: "same-origin" }).then(loadClients);
         return;
       }
       if (el.dataset.clientDelete) {
         if (confirm("Apagar este cliente de vez? Os jogos atribuídos a ele voltam a ficar sem dono.")) {
-          fetch("/admin/api/clients/" + el.dataset.clientDelete, { method: "DELETE", credentials: "same-origin" }).then(loadClients);
+          adminFetch("/admin/api/clients/" + el.dataset.clientDelete, { method: "DELETE", credentials: "same-origin" }).then(loadClients);
         }
       }
     });
@@ -327,7 +340,7 @@
     }
 
     function loadRequestQueue() {
-      fetch("/admin/api/access-requests", { credentials: "same-origin" })
+      adminFetch("/admin/api/access-requests", { credentials: "same-origin" })
         .then(function (r) { return r.status === 401 ? null : r.json(); })
         .then(function (data) { if (data) renderRequestQueue(data.requests); })
         .catch(function () {
@@ -339,7 +352,7 @@
       var approveBtn = e.target.closest("[data-approve-request]");
       if (approveBtn) {
         approveBtn.disabled = true;
-        fetch("/admin/api/access-requests/" + approveBtn.dataset.approveRequest + "/approve", {
+        adminFetch("/admin/api/access-requests/" + approveBtn.dataset.approveRequest + "/approve", {
           method: "POST",
           credentials: "same-origin",
         })
@@ -357,7 +370,7 @@
       var denyBtn = e.target.closest("[data-deny-request]");
       if (denyBtn) {
         denyBtn.disabled = true;
-        fetch("/admin/api/access-requests/" + denyBtn.dataset.denyRequest + "/deny", {
+        adminFetch("/admin/api/access-requests/" + denyBtn.dataset.denyRequest + "/deny", {
           method: "POST",
           credentials: "same-origin",
         }).then(loadRequestQueue);
@@ -464,7 +477,7 @@
     }
 
     function loadGames() {
-      fetch("/admin/api/games", { credentials: "same-origin" })
+      adminFetch("/admin/api/games", { credentials: "same-origin" })
         .then(function (r) { return r.status === 401 ? null : r.json(); })
         .then(function (data) { if (data) renderGames(data.games); })
         .catch(function () {
@@ -533,7 +546,7 @@
       gameSubmit.textContent = "Enviando...";
 
       var body = new FormData(gameForm);
-      fetch("/admin/api/games", { method: "POST", credentials: "same-origin", body: body })
+      adminFetch("/admin/api/games", { method: "POST", credentials: "same-origin", body: body })
         .then(function (r) {
           return r.json().then(function (data) { return { ok: r.ok, data: data }; });
         })
@@ -571,7 +584,7 @@
         pbody.append("genre", pgame.genre || "");
         pbody.append("tags", (pgame.tags || []).join(", "));
         pbody.append("status", "published");
-        fetch("/admin/api/games/" + encodeURIComponent(pid), {
+        adminFetch("/admin/api/games/" + encodeURIComponent(pid), {
           method: "PATCH",
           credentials: "same-origin",
           body: pbody,
@@ -634,7 +647,7 @@
 
         // Sem Content-Type manual: o navegador monta o boundary do
         // multipart sozinho a partir do FormData.
-        fetch("/admin/api/games/" + encodeURIComponent(id), {
+        adminFetch("/admin/api/games/" + encodeURIComponent(id), {
           method: "PATCH",
           credentials: "same-origin",
           body: payload,
@@ -665,7 +678,7 @@
       var el = e.target.closest("[data-delete-game]");
       if (!el) return;
       if (!confirm('Apagar "' + el.dataset.deleteGame + '" de vez? O arquivo some do ar também.')) return;
-      fetch("/admin/api/games/" + encodeURIComponent(el.dataset.deleteGame), {
+      adminFetch("/admin/api/games/" + encodeURIComponent(el.dataset.deleteGame), {
         method: "DELETE",
         credentials: "same-origin",
       }).then(loadGames);
@@ -697,7 +710,7 @@
       body.append("tags", fields.tags !== undefined ? fields.tags : (game.tags || []).join(", "));
       if (fields.status !== undefined) body.append("status", fields.status);
       if (fields.featured !== undefined) body.append("featured", fields.featured ? "true" : "false");
-      return fetch("/admin/api/games/" + encodeURIComponent(gameId), {
+      return adminFetch("/admin/api/games/" + encodeURIComponent(gameId), {
         method: "PATCH",
         credentials: "same-origin",
         body: body,
@@ -790,7 +803,7 @@
     scanBtn.addEventListener("click", function () {
       scanBtn.disabled = true;
       scanBtn.textContent = "Verificando...";
-      fetch("/admin/api/library/scan", { credentials: "same-origin" })
+      adminFetch("/admin/api/library/scan", { credentials: "same-origin" })
         .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
         .then(function (res) {
           if (!res.ok) {
