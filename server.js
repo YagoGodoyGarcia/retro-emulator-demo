@@ -189,6 +189,82 @@ function requestAccessPage(res, cfg, pending) {
 </html>`);
 }
 
+// Tela que um visitante SEM carteira nenhuma vê ao tentar abrir qualquer
+// jogo (dono ou não) — precisa de um nome pra existir uma carteira real
+// pra atrelar o pedido. Cria a carteira (clients.newClient, mesma função
+// do /juntar) e o pedido pendente (lib/access-requests.js, mesmo módulo
+// de sempre) numa única chamada em POST /api/access-requests/anonymous.
+function anonymousRequestPage(res, cfg) {
+  const csrfToken = csrf.setToken(res);
+  res.status(403).send(`<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>${escapeHtml(cfg.title)} · MYDE</title>
+  <link rel="stylesheet" href="/css/style.css" />${PWA_HEAD}
+</head>
+<body class="system-body">
+  <main class="system-card onboarding-card">
+    <div class="system-mark">MYDE</div>
+    <div class="system-icon">🔒</div>
+    <h1>${escapeHtml(cfg.title)} é exclusivo</h1>
+    <p>Esse cartucho pertence a uma conta específica. Deixe seu nome que a gente avalia seu pedido.</p>
+    <form id="anon-request-form" class="onboarding-form">
+      <label>Seu nome<input class="field" id="anon-request-name" autocomplete="name" maxlength="60" required placeholder="Como podemos chamar você?" /></label>
+      <label>E-mail <span>(opcional)</span><input class="field" id="anon-request-email" type="email" autocomplete="email" inputmode="email" maxlength="120" placeholder="Pra te avisar quando liberar" /></label>
+      <button class="btn" type="submit" id="anon-request-btn">Solicitar acesso</button>
+      <p class="form-error" id="anon-request-error" hidden></p>
+    </form>
+    <p class="panel-note" id="anon-request-done" hidden>Pedido enviado — aguardando aprovação.</p>
+    <p><a href="/">&larr; voltar</a></p>
+  </main>
+  <script>
+    (function () {
+      var form = document.getElementById("anon-request-form");
+      var btn = document.getElementById("anon-request-btn");
+      var error = document.getElementById("anon-request-error");
+      var done = document.getElementById("anon-request-done");
+      form.addEventListener("submit", function (event) {
+        event.preventDefault();
+        btn.disabled = true;
+        btn.textContent = "Enviando...";
+        error.hidden = true;
+        fetch("/api/access-requests/anonymous", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json", "X-CSRF-Token": ${jsonForScript(csrfToken)} },
+          body: JSON.stringify({
+            gameId: ${jsonForScript(cfg.gameId)},
+            name: document.getElementById("anon-request-name").value,
+            email: document.getElementById("anon-request-email").value,
+          }),
+        })
+          .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+          .then(function (res) {
+            if (!res.ok) {
+              error.textContent = (res.data && res.data.error) || "Falha ao enviar. Tenta de novo.";
+              error.hidden = false;
+              btn.disabled = false;
+              btn.textContent = "Solicitar acesso";
+              return;
+            }
+            form.hidden = true;
+            done.hidden = false;
+          })
+          .catch(function () {
+            error.textContent = "Falha de rede. Tenta de novo.";
+            error.hidden = false;
+            btn.disabled = false;
+            btn.textContent = "Solicitar acesso";
+          });
+      });
+    })();
+  </script>
+</body>
+</html>`);
+}
+
 function clientOnboardingPage(res, client, game) {
   const csrfToken = csrf.setToken(res);
   const title = game ? escapeHtml(game.title) : "seu jogo";
@@ -903,6 +979,48 @@ app.post("/api/access-requests", accessRequestLimiter, requireCsrf, async (req, 
   }
 });
 
+// Mesma coisa que POST /api/access-requests, mas pra visitante que ainda
+// não tem carteira nenhuma (formulário de anonymousRequestPage, acionado
+// de /play/:id). Cria a carteira de verdade a partir do nome/e-mail
+// digitado — reaproveita sessão já existente se por acaso já tiver uma
+// (evita duplicar carteira se a pessoa reenviar o formulário) — e cria o
+// pedido pendente exatamente como o fluxo de carteira já estabelecida.
+app.post("/api/access-requests/anonymous", accessRequestLimiter, requireCsrf, async (req, res) => {
+  try {
+    const gameId = String((req.body && req.body.gameId) || "").trim();
+    if (!gameId) return res.status(400).json({ error: "informe o jogo" });
+
+    const game = await library.getGame(gameId);
+    if (!game) return res.status(404).json({ error: "jogo não encontrado" });
+
+    const name = String((req.body && req.body.name) || "").trim();
+    if (name.length < 2) return res.status(400).json({ error: "informe seu nome" });
+    const email = String((req.body && req.body.email) || "").trim();
+
+    let client = await clients.currentClient(clientsStore, req).catch(() => null);
+    if (!client) {
+      client = clients.newClient(name, email, "form");
+      await clientsStore.put(client);
+      clients.startSession(res, client.id);
+    }
+
+    const owners = await ownership.getGameOwners(gameId);
+    if (owners.includes(client.id)) return res.status(400).json({ error: "esse jogo já é seu" });
+
+    const request = await accessRequests.createRequest(client.id, gameId);
+    accessLog.record(client.id, {
+      type: "request",
+      gameId,
+      path: req.originalUrl,
+      userAgent: req.get("user-agent"),
+    }).catch(() => {});
+    res.json({ request });
+  } catch (err) {
+    console.error("[access-requests] falha ao criar pedido anônimo:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ---------------------------------------------------------------------------
 // GET /play/:id — o player
 // ---------------------------------------------------------------------------
@@ -941,9 +1059,18 @@ app.get("/play/:keyId", requireAccess, async (req, res) => {
   }
 
   // Fechado por padrão. Cliente logado: só joga o que é dele — jogo sem
-  // dono NÃO libera automaticamente (mesma regra da home/catálogo). Quem
-  // não é cliente: comportamento de sempre, só bloqueia se o jogo tiver
-  // dono (aí não tem quem pedir acesso, então é bloqueio simples).
+  // dono NÃO libera automaticamente (mesma regra da home/catálogo).
+  //
+  // Visitante SEM carteira nenhuma (2026-08-18): bloqueia sempre, jogo
+  // tendo dono ou não. Achado real — Sonic não tinha dono nenhum, e uma
+  // aba anônima no iPhone jogou direto, sem pedir nada. O critério antigo
+  // (`owners.length`) só bloqueava jogo já atribuído a alguém; jogo "livre"
+  // ficava aberto pra qualquer um, o que é exatamente o "aberto por
+  // padrão" que devia ter deixado de existir. Sem carteira nenhuma pra
+  // atrelar o pedido, mostra um formulário mínimo (nome/e-mail) que cria a
+  // carteira de verdade (mesmo clients.newClient() do /juntar) e já deixa
+  // o pedido pendente — não é sessão anônima fake, é a mesma carteira que
+  // o admin veria e aprovaria depois.
   const owners = await ownership.getGameOwners(keyId).catch(() => []);
 
   if (!isAdmin && client) {
@@ -951,12 +1078,8 @@ app.get("/play/:keyId", requireAccess, async (req, res) => {
       const pending = await accessRequests.findPending(client.id, keyId).catch(() => null);
       return requestAccessPage(res, cfg, Boolean(pending));
     }
-  } else if (!isAdmin && !client && owners.length) {
-    return systemPage(res, 403, {
-      icon: "🔒",
-      title: "Jogo exclusivo",
-      body: "<p>Este cartucho pertence a uma carteira específica. Entre pelo link recebido para jogar.</p>",
-    });
+  } else if (!isAdmin && !client) {
+    return anonymousRequestPage(res, cfg);
   }
 
   // Não bloqueia o carregamento da página por causa disso — é só contagem
